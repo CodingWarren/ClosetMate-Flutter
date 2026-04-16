@@ -84,6 +84,30 @@ class ClothingRepository {
     );
   }
 
+  Future<int> getTotalCount() async {
+    final db = await _database.database;
+    final result = await db.rawQuery(
+      'SELECT COUNT(*) as count FROM ${AppDatabase.clothingTable}',
+    );
+    return Sqflite.firstIntValue(result) ?? 0;
+  }
+
+  Future<double> getTotalSpending() async {
+    final db = await _database.database;
+    final result = await db.rawQuery(
+      'SELECT SUM(price) as total FROM ${AppDatabase.clothingTable}',
+    );
+    return (result.first['total'] as num?)?.toDouble() ?? 0.0;
+  }
+
+  Future<List<Map<String, dynamic>>> getCategoryStats() async {
+    final db = await _database.database;
+    return db.rawQuery(
+      'SELECT category, COUNT(*) as count FROM ${AppDatabase.clothingTable} '
+      'GROUP BY category ORDER BY count DESC',
+    );
+  }
+
   Future<List<ClothingModel>> searchClothing({
     String? keyword,
     String? category,

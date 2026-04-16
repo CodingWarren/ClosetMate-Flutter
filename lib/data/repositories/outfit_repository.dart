@@ -57,6 +57,14 @@ class OutfitRepository {
     );
   }
 
+  Future<int> getTotalCount() async {
+    final db = await _database.database;
+    final result = await db.rawQuery(
+      'SELECT COUNT(*) as count FROM ${AppDatabase.outfitsTable}',
+    );
+    return Sqflite.firstIntValue(result) ?? 0;
+  }
+
   Future<List<OutfitModel>> getFavoriteOutfits() async {
     final db = await _database.database;
     final result = await db.query(
