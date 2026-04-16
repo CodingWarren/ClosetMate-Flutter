@@ -1,3 +1,5 @@
+import 'package:closetmate/features/closet/screens/add_clothing_screen.dart';
+import 'package:closetmate/features/closet/screens/clothing_detail_screen.dart';
 import 'package:closetmate/features/closet/screens/closet_screen.dart';
 import 'package:closetmate/features/lock/screens/lock_screen.dart';
 import 'package:closetmate/features/outfit/screens/outfit_screen.dart';
@@ -18,6 +20,22 @@ final GoRouter appRouter = GoRouter(
           path: '/',
           pageBuilder: (context, state) => const NoTransitionPage(
             child: ClosetScreen(),
+          ),
+        ),
+        GoRoute(
+          path: '/clothing/add',
+          builder: (context, state) => const AddClothingScreen(),
+        ),
+        GoRoute(
+          path: '/clothing/:id',
+          builder: (context, state) => ClothingDetailScreen(
+            clothingId: state.pathParameters['id']!,
+          ),
+        ),
+        GoRoute(
+          path: '/clothing/:id/edit',
+          builder: (context, state) => AddClothingScreen(
+            editClothingId: state.pathParameters['id'],
           ),
         ),
         GoRoute(

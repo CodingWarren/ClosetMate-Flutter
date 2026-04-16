@@ -57,6 +57,33 @@ class ClothingRepository {
     );
   }
 
+  Future<void> updateStatus(String id, String status) async {
+    final db = await _database.database;
+    await db.update(
+      AppDatabase.clothingTable,
+      {
+        'status': status,
+        'updatedAt': DateTime.now().millisecondsSinceEpoch,
+      },
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
+
+  Future<void> incrementWearCount(String id) async {
+    final item = await getClothingById(id);
+    if (item == null) return;
+
+    final now = DateTime.now().millisecondsSinceEpoch;
+    await updateClothing(
+      item.copyWith(
+        wearCount: item.wearCount + 1,
+        lastWornAt: now,
+        updatedAt: now,
+      ),
+    );
+  }
+
   Future<List<ClothingModel>> searchClothing({
     String? keyword,
     String? category,
