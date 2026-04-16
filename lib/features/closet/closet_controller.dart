@@ -2,11 +2,8 @@ import 'dart:async';
 
 import 'package:closetmate/data/models/clothing_model.dart';
 import 'package:closetmate/data/repositories/clothing_repository.dart';
+import 'package:closetmate/data/repositories/repository_providers.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-
-final clothingRepositoryProvider = Provider<ClothingRepository>((ref) {
-  return ClothingRepository();
-});
 
 final closetControllerProvider =
     StateNotifierProvider<ClosetController, ClosetState>((ref) {
