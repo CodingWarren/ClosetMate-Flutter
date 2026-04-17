@@ -49,6 +49,26 @@
 	</dict>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+
+	<!-- 相册权限（选择衣物图片） -->
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>ClosetMate 需要访问您的相册，以便您选择衣物图片添加到衣橱。</string>
+
+	<!-- 相机权限（拍摄衣物） -->
+	<key>NSCameraUsageDescription</key>
+	<string>ClosetMate 需要使用相机，以便您拍摄衣物照片添加到衣橱。</string>
+
+	<!-- 麦克风权限（拍摄视频时需要，防止 App Store 审核被拒） -->
+	<key>NSMicrophoneUsageDescription</key>
+	<string>ClosetMate 在拍摄视频时可能需要访问麦克风。</string>
+
+	<!-- Face ID 权限（应用锁生物识别） -->
+	<key>NSFaceIDUsageDescription</key>
+	<string>ClosetMate 使用 Face ID 来保护您的衣橱数据安全。</string>
+
+	<!-- 相册写入权限（保存处理后的图片，iOS 14 以下需要） -->
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>ClosetMate 需要保存处理后的衣物图片到您的相册。</string>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>
