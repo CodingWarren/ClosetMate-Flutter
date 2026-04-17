@@ -100,6 +100,11 @@ class OutfitScreen extends ConsumerWidget {
                           onSaveOutfit: controller.saveRecommendedOutfit,
                           onFeedback: controller.submitFeedback,
                           onNavigateToCloset: () => context.go('/'),
+                          onShowSnackBar: (msg) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text(msg)),
+                            );
+                          },
                         ),
                         const SizedBox(height: 12),
                         // 搭配列表
@@ -142,14 +147,16 @@ class _AiRecommendSection extends StatelessWidget {
     required this.onSaveOutfit,
     required this.onFeedback,
     required this.onNavigateToCloset,
+    required this.onShowSnackBar,
   });
 
   final RecommendUiState recommendState;
   final List<ClothingModel> allClothing;
   final VoidCallback onRefresh;
-  final Future<void> Function(OutfitModel) onSaveOutfit;
+  final Future<bool> Function(OutfitModel) onSaveOutfit;
   final Future<void> Function(String, String) onFeedback;
   final VoidCallback onNavigateToCloset;
+  final ValueChanged<String> onShowSnackBar;
 
   @override
   Widget build(BuildContext context) {
@@ -215,17 +222,18 @@ class _AiRecommendSection extends StatelessWidget {
                       child: ListView.separated(
                         scrollDirection: Axis.horizontal,
                         itemCount: outfits.length,
-                        separatorBuilder: (context, ignored) => const SizedBox(width: 10),
+                        separatorBuilder: (context, ignored) =>
+                            const SizedBox(width: 10),
                         itemBuilder: (context, index) {
                           return _RecommendCard(
                             recommendedOutfit: outfits[index],
                             allClothing: allClothing,
-                            onSave: () =>
-                                onSaveOutfit(outfits[index].outfit),
+                            onSave: () => onSaveOutfit(outfits[index].outfit),
                             onFeedback: (feedback) => onFeedback(
                               outfits[index].outfit.id,
                               feedback,
                             ),
+                            onShowSnackBar: onShowSnackBar,
                           );
                         },
                       ),
@@ -293,12 +301,14 @@ class _RecommendCard extends StatefulWidget {
     required this.allClothing,
     required this.onSave,
     required this.onFeedback,
+    required this.onShowSnackBar,
   });
 
   final RecommendedOutfit recommendedOutfit;
   final List<ClothingModel> allClothing;
-  final VoidCallback onSave;
+  final Future<bool> Function() onSave;
   final ValueChanged<String> onFeedback;
+  final ValueChanged<String> onShowSnackBar;
 
   @override
   State<_RecommendCard> createState() => _RecommendCardState();
@@ -307,6 +317,7 @@ class _RecommendCard extends StatefulWidget {
 class _RecommendCardState extends State<_RecommendCard> {
   String _feedback = OutfitFeedback.none;
   bool _saved = false;
+  bool _isSaving = false;
 
   @override
   void initState() {
@@ -409,28 +420,57 @@ class _RecommendCardState extends State<_RecommendCard> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  IconButton(
-                    onPressed: () {
-                      if (!_saved) {
-                        widget.onSave();
-                        setState(() => _saved = true);
-                      }
-                    },
-                    icon: Icon(
-                      _saved ? Icons.bookmark_added : Icons.bookmark_border,
-                      size: 16,
-                      color: _saved ? colorScheme.primary : colorScheme.onSurfaceVariant,
-                    ),
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                  // 保存按钮：async await + SnackBar 反馈
+                  SizedBox(
+                    width: 28,
+                    height: 28,
+                    child: _isSaving
+                        ? Padding(
+                            padding: const EdgeInsets.all(6),
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: colorScheme.primary,
+                            ),
+                          )
+                        : IconButton(
+                            onPressed: _saved
+                                ? null
+                                : () async {
+                                    setState(() => _isSaving = true);
+                                    final success = await widget.onSave();
+                                    if (!mounted) return;
+                                    setState(() => _isSaving = false);
+                                    if (success) {
+                                      setState(() => _saved = true);
+                                      widget.onShowSnackBar('✅ 搭配已保存到我的搭配列表');
+                                    } else {
+                                      widget.onShowSnackBar('❌ 保存失败，请重试');
+                                    }
+                                  },
+                            icon: Icon(
+                              _saved
+                                  ? Icons.bookmark_added
+                                  : Icons.bookmark_border,
+                              size: 16,
+                              color: _saved
+                                  ? colorScheme.primary
+                                  : colorScheme.onSurfaceVariant,
+                            ),
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(
+                              minWidth: 28,
+                              minHeight: 28,
+                            ),
+                          ),
                   ),
                   Row(
                     children: [
                       GestureDetector(
                         onTap: () {
-                          final newFeedback = _feedback == OutfitFeedback.liked
-                              ? OutfitFeedback.none
-                              : OutfitFeedback.liked;
+                          final newFeedback =
+                              _feedback == OutfitFeedback.liked
+                                  ? OutfitFeedback.none
+                                  : OutfitFeedback.liked;
                           setState(() => _feedback = newFeedback);
                           widget.onFeedback(newFeedback);
                         },
@@ -440,16 +480,18 @@ class _RecommendCardState extends State<_RecommendCard> {
                             fontSize: 16,
                             color: _feedback == OutfitFeedback.liked
                                 ? null
-                                : colorScheme.onSurfaceVariant.withValues(alpha: 0.4),
+                                : colorScheme.onSurfaceVariant
+                                    .withValues(alpha: 0.4),
                           ),
                         ),
                       ),
                       const SizedBox(width: 8),
                       GestureDetector(
                         onTap: () {
-                          final newFeedback = _feedback == OutfitFeedback.disliked
-                              ? OutfitFeedback.none
-                              : OutfitFeedback.disliked;
+                          final newFeedback =
+                              _feedback == OutfitFeedback.disliked
+                                  ? OutfitFeedback.none
+                                  : OutfitFeedback.disliked;
                           setState(() => _feedback = newFeedback);
                           widget.onFeedback(newFeedback);
                         },
@@ -459,7 +501,8 @@ class _RecommendCardState extends State<_RecommendCard> {
                             fontSize: 16,
                             color: _feedback == OutfitFeedback.disliked
                                 ? null
-                                : colorScheme.onSurfaceVariant.withValues(alpha: 0.4),
+                                : colorScheme.onSurfaceVariant
+                                    .withValues(alpha: 0.4),
                           ),
                         ),
                       ),
@@ -482,7 +525,8 @@ class _ClothingThumb extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final imageUrl = clothing.imageUriList.isNotEmpty ? clothing.imageUriList.first : null;
+    final imageUrl =
+        clothing.imageUriList.isNotEmpty ? clothing.imageUriList.first : null;
     final colorScheme = Theme.of(context).colorScheme;
 
     return ClipRRect(
@@ -595,10 +639,13 @@ class _OutfitCard extends StatelessWidget {
                   icon: Icon(
                     outfit.isFavorite ? Icons.favorite : Icons.favorite_border,
                     size: 18,
-                    color: outfit.isFavorite ? colorScheme.error : colorScheme.onSurfaceVariant,
+                    color: outfit.isFavorite
+                        ? colorScheme.error
+                        : colorScheme.onSurfaceVariant,
                   ),
                   padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                  constraints:
+                      const BoxConstraints(minWidth: 32, minHeight: 32),
                 ),
               ],
             ),
@@ -607,7 +654,8 @@ class _OutfitCard extends StatelessWidget {
                 spacing: 6,
                 children: scenes.take(3).map((scene) {
                   return Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                     decoration: BoxDecoration(
                       color: colorScheme.primaryContainer,
                       borderRadius: BorderRadius.circular(4),
@@ -672,7 +720,8 @@ class _OutfitCard extends StatelessWidget {
                 FilledButton.tonal(
                   onPressed: onWear,
                   style: FilledButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                     minimumSize: const Size(0, 32),
                   ),
                   child: const Row(

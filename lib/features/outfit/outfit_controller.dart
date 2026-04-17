@@ -167,9 +167,15 @@ class OutfitController extends StateNotifier<OutfitState> {
     await loadRecommendations();
   }
 
-  Future<void> saveRecommendedOutfit(OutfitModel outfit) async {
-    await _outfitRepo.insertOutfit(outfit);
-    await _loadOutfits();
+  /// 保存 AI 推荐的搭配到数据库，返回是否成功
+  Future<bool> saveRecommendedOutfit(OutfitModel outfit) async {
+    try {
+      await _outfitRepo.insertOutfit(outfit);
+      await _loadOutfits();
+      return true;
+    } catch (e) {
+      return false;
+    }
   }
 
   Future<void> submitFeedback(String outfitId, String feedback) async {
