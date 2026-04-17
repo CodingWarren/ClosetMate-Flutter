@@ -100,6 +100,7 @@ class _AddClothingScreenState extends State<AddClothingScreen> {
     // 立即弹出 Loading，让用户知道正在处理
     setState(() => _isAiProcessing = true);
     final nav = Navigator.of(context, rootNavigator: true);
+    // ignore: use_build_context_synchronously
     showDialog<void>(
       context: context,
       barrierDismissible: false,
@@ -135,6 +136,7 @@ class _AddClothingScreenState extends State<AddClothingScreen> {
     // 立即弹出 Loading
     setState(() => _isAiProcessing = true);
     final nav = Navigator.of(context, rootNavigator: true);
+    // ignore: use_build_context_synchronously
     showDialog<void>(
       context: context,
       barrierDismissible: false,
@@ -161,6 +163,7 @@ class _AddClothingScreenState extends State<AddClothingScreen> {
         _originalImageUri = imagePath;
       });
       navigator = Navigator.of(context, rootNavigator: true);
+      // ignore: use_build_context_synchronously
       showDialog<void>(
         context: context,
         barrierDismissible: false,
