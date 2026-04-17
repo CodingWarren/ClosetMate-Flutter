@@ -191,8 +191,22 @@ class OutfitController extends StateNotifier<OutfitState> {
     await _loadOutfits();
   }
 
+  /// 检查今天是否已经记录过穿着
+  bool _isWornToday(int lastWornAt) {
+    if (lastWornAt == 0) return false;
+    final last = DateTime.fromMillisecondsSinceEpoch(lastWornAt);
+    final today = DateTime.now();
+    return last.year == today.year &&
+        last.month == today.month &&
+        last.day == today.day;
+  }
+
   /// 记录穿着：搭配穿着次数 +1，同时给搭配内所有单品穿着次数 +1
-  Future<bool> wearOutfit(OutfitModel outfit) async {
+  /// 返回值：1=成功，0=今日已记录，-1=失败
+  Future<int> wearOutfit(OutfitModel outfit) async {
+    // 今天已经记录过，不重复计数
+    if (_isWornToday(outfit.lastWornAt)) return 0;
+
     try {
       final now = DateTime.now().millisecondsSinceEpoch;
       // 1. 更新搭配本身
@@ -228,9 +242,9 @@ class OutfitController extends StateNotifier<OutfitState> {
       }
 
       await _loadOutfits();
-      return true;
+      return 1;
     } catch (e) {
-      return false;
+      return -1;
     }
   }
 

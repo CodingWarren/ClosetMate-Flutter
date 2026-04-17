@@ -123,17 +123,16 @@ class OutfitScreen extends ConsumerWidget {
                                 onFavoriteToggle: () =>
                                     controller.toggleFavorite(outfit),
                                 onWear: () async {
-                                  final success =
+                                  final result =
                                       await controller.wearOutfit(outfit);
                                   if (!context.mounted) return;
+                                  final msg = switch (result) {
+                                    1 => '✅ 已记录穿着，搭配和单品穿着次数 +1',
+                                    0 => '今天已经记录过这套穿搭了 😊',
+                                    _ => '❌ 记录失败，请重试',
+                                  };
                                   ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      content: Text(
-                                        success
-                                            ? '✅ 已记录穿着，搭配和单品穿着次数 +1'
-                                            : '❌ 记录失败，请重试',
-                                      ),
-                                    ),
+                                    SnackBar(content: Text(msg)),
                                   );
                                 },
                               ),
