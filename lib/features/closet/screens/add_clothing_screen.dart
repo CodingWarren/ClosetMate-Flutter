@@ -4,6 +4,7 @@ import 'package:closetmate/data/models/clothing_model.dart';
 import 'package:closetmate/data/repositories/clothing_repository.dart';
 import 'package:closetmate/data/services/ai/baidu_ai_service.dart';
 import 'package:closetmate/data/services/ai/remove_bg_service.dart';
+import 'package:closetmate/data/services/image_edit_helper.dart';
 import 'package:closetmate/data/services/image_storage_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -170,6 +171,16 @@ class _AddClothingScreenState extends State<AddClothingScreen> {
   /// 手动重新触发 AI 抠图（点击图片上的 ✨ 按钮）
   void _retriggerAi(String imagePath, int imageIndex) {
     _triggerAiProcessingAsync(imagePath, imageIndex);
+  }
+
+  /// 编辑图片（旋转/裁剪）
+  Future<void> _editImage(String imagePath, int imageIndex) async {
+    final editedPath = await ImageEditHelper.editImage(context, imagePath);
+    if (editedPath != null && mounted) {
+      setState(() {
+        _imageUris[imageIndex] = editedPath;
+      });
+    }
   }
 
   Future<bool?> _showAiResultDialog({
@@ -387,6 +398,7 @@ class _AddClothingScreenState extends State<AddClothingScreen> {
                       setState(() => _imageUris.remove(uri));
                     },
                     onRetriggerAi: _retriggerAi,
+                    onEditImage: _editImage,
                   )
                 : _currentStep == 2
                     ? _Step2BasicInfo(
@@ -508,6 +520,7 @@ class _Step1ImagePicker extends StatelessWidget {
     required this.onTakePhoto,
     required this.onRemove,
     required this.onRetriggerAi,
+    required this.onEditImage,
   });
 
   final List<String> imageUris;
@@ -517,6 +530,7 @@ class _Step1ImagePicker extends StatelessWidget {
   final VoidCallback onTakePhoto;
   final ValueChanged<String> onRemove;
   final void Function(String uri, int index) onRetriggerAi;
+  final void Function(String uri, int index) onEditImage;
 
   @override
   Widget build(BuildContext context) {
@@ -625,6 +639,24 @@ class _Step1ImagePicker extends StatelessWidget {
                                     shape: BoxShape.circle,
                                   ),
                                   child: Icon(Icons.close, size: 14, color: colorScheme.onError),
+                                ),
+                              ),
+                            ),
+                          // 编辑图片按钮（左下角，处理中时隐藏）
+                          if (!isProcessing)
+                            Positioned(
+                              bottom: 4,
+                              left: 4,
+                              child: GestureDetector(
+                                onTap: () => onEditImage(uri, index),
+                                child: Container(
+                                  width: 26,
+                                  height: 26,
+                                  decoration: BoxDecoration(
+                                    color: Colors.black.withValues(alpha: 0.55),
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: const Icon(Icons.crop_rotate, size: 14, color: Colors.white),
                                 ),
                               ),
                             ),

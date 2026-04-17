@@ -1,5 +1,6 @@
 import 'package:closetmate/data/models/clothing_model.dart';
 import 'package:closetmate/data/repositories/clothing_repository.dart';
+import 'package:closetmate/data/services/image_edit_helper.dart';
 import 'package:closetmate/shared/widgets/clothing_image.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
@@ -38,6 +39,24 @@ class _ClothingDetailScreenState extends State<ClothingDetailScreen> {
       clothing = item;
       isLoading = false;
     });
+  }
+
+  Future<void> _editImage(int index) async {
+    final item = clothing;
+    if (item == null) return;
+    final imagePath = item.imageUriList[index];
+    final editedPath = await ImageEditHelper.editImage(context, imagePath);
+    if (editedPath != null && mounted) {
+      final newUris = List<String>.from(item.imageUriList);
+      newUris[index] = editedPath;
+      await _repository.updateClothing(
+        item.copyWith(
+          imageUris: newUris.join(','),
+          updatedAt: DateTime.now().millisecondsSinceEpoch,
+        ),
+      );
+      await _load();
+    }
   }
 
   Future<void> _markWorn() async {
@@ -161,11 +180,41 @@ class _ClothingDetailScreenState extends State<ClothingDetailScreen> {
                             itemCount: item.imageUriList.length,
                       itemBuilder: (context, index) {
                               final imageUrl = item.imageUriList[index];
-                              return ClothingImage(
-                                imageUrl: imageUrl,
-                                fit: BoxFit.cover,
-                                fallbackIcon: Icons.image_not_supported_outlined,
-                                fallbackIconSize: 40,
+                              return GestureDetector(
+                                onLongPress: () => _editImage(index),
+                                child: Stack(
+                                  children: [
+                                    ClothingImage(
+                                      imageUrl: imageUrl,
+                                      fit: BoxFit.cover,
+                                      fallbackIcon: Icons.image_not_supported_outlined,
+                                      fallbackIconSize: 40,
+                                    ),
+                                    // 编辑提示（右下角）
+                                    Positioned(
+                                      bottom: 12,
+                                      right: 12,
+                                      child: GestureDetector(
+                                        onTap: () => _editImage(index),
+                                        child: Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                          decoration: BoxDecoration(
+                                            color: Colors.black.withValues(alpha: 0.55),
+                                            borderRadius: BorderRadius.circular(20),
+                                          ),
+                                          child: const Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              Icon(Icons.crop_rotate, size: 14, color: Colors.white),
+                                              SizedBox(width: 4),
+                                              Text('编辑', style: TextStyle(color: Colors.white, fontSize: 12)),
+                                            ],
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
                               );
                             },
                           ),
