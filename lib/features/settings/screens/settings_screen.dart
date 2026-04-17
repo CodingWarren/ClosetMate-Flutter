@@ -1,4 +1,6 @@
+import 'package:closetmate/data/services/api_config_service.dart';
 import 'package:closetmate/data/services/app_lock_service.dart';
+import 'package:closetmate/data/services/backup_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -13,6 +15,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _isLockEnabled = false;
   bool _isBiometricEnabled = false;
   bool _isBiometricAvailable = false;
+  bool _isBackingUp = false;
+  bool _isRestoring = false;
 
   @override
   void initState() {
@@ -157,23 +161,29 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   _SettingsTile(
                     icon: Icons.cloud_upload_outlined,
                     title: '备份数据',
-                    subtitle: '将衣橱数据打包为 ZIP 文件',
-                    onTap: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('备份功能将在下一版本接入')),
-                      );
-                    },
+                    subtitle: _isBackingUp ? '正在备份…' : '将衣橱数据导出为 JSON 文件',
+                    trailing: _isBackingUp
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : null,
+                    onTap: _isBackingUp ? null : _doBackup,
                   ),
                   const Divider(indent: 56, height: 1),
                   _SettingsTile(
                     icon: Icons.cloud_download_outlined,
                     title: '恢复数据',
-                    subtitle: '从备份 ZIP 文件恢复衣橱数据',
-                    onTap: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('恢复功能将在下一版本接入')),
-                      );
-                    },
+                    subtitle: _isRestoring ? '正在恢复…' : '从备份 JSON 文件恢复衣橱数据',
+                    trailing: _isRestoring
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : null,
+                    onTap: _isRestoring ? null : _doRestore,
                   ),
                   const Divider(indent: 56, height: 1),
                   _SettingsTile(
@@ -314,6 +324,79 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
             const SizedBox(height: 20),
 
+            // AI 服务配置
+            _SectionTitle(title: 'AI 服务配置'),
+            const SizedBox(height: 8),
+            Card(
+              child: Column(
+                children: [
+                  _SettingsTile(
+                    icon: Icons.cloud_outlined,
+                    title: '和风天气 API',
+                    subtitle: '配置天气服务 Key 和城市',
+                    onTap: () => _showApiConfigDialog(
+                      title: '和风天气配置',
+                      fields: const [
+                        _ApiField(key: 'qweather_key', label: 'API Key'),
+                        _ApiField(key: 'qweather_city', label: '城市（如：北京）'),
+                      ],
+                      loaders: [
+                        ApiConfigService.qWeatherApiKey,
+                        ApiConfigService.qWeatherCity,
+                      ],
+                      onSave: (values) async {
+                        await ApiConfigService.setQWeatherApiKey(values[0]);
+                        await ApiConfigService.setQWeatherCity(values[1]);
+                      },
+                    ),
+                  ),
+                  const Divider(indent: 56, height: 1),
+                  _SettingsTile(
+                    icon: Icons.auto_awesome_outlined,
+                    title: 'Remove.bg 抠图',
+                    subtitle: '配置 AI 背景去除服务 Key',
+                    onTap: () => _showApiConfigDialog(
+                      title: 'Remove.bg 配置',
+                      fields: const [
+                        _ApiField(key: 'removebg_key', label: 'API Key'),
+                      ],
+                      loaders: [ApiConfigService.removeBgApiKey],
+                      onSave: (values) async {
+                        await ApiConfigService.setRemoveBgApiKey(values[0]);
+                      },
+                    ),
+                  ),
+                  const Divider(indent: 56, height: 1),
+                  _SettingsTile(
+                    icon: Icons.image_search_outlined,
+                    title: '百度 AI 识别',
+                    subtitle: '配置衣物图像识别服务',
+                    onTap: () => _showApiConfigDialog(
+                      title: '百度 AI 配置',
+                      fields: const [
+                        _ApiField(key: 'baidu_app_id', label: 'App ID'),
+                        _ApiField(key: 'baidu_api_key', label: 'API Key'),
+                        _ApiField(key: 'baidu_secret', label: 'Secret Key'),
+                      ],
+                      loaders: [
+                        ApiConfigService.baiduAppId,
+                        ApiConfigService.baiduApiKey,
+                        ApiConfigService.baiduSecretKey,
+                      ],
+                      onSave: (values) async {
+                        await ApiConfigService.setBaiduCredentials(
+                          appId: values[0],
+                          apiKey: values[1],
+                          secretKey: values[2],
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 20),
+
             // 关于
             _SectionTitle(title: '关于'),
             const SizedBox(height: 8),
@@ -338,6 +421,84 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Future<void> _doBackup() async {
+    setState(() => _isBackingUp = true);
+    final result = await BackupService.createAndShareBackup();
+    if (!mounted) return;
+    setState(() => _isBackingUp = false);
+    if (result is BackupError) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(result.message)),
+      );
+    }
+  }
+
+  Future<void> _doRestore() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        icon: Icon(Icons.warning, color: Theme.of(context).colorScheme.error),
+        title: const Text('恢复数据'),
+        content: const Text(
+          '恢复操作将覆盖当前所有衣物和搭配数据，且无法撤销。\n\n确定要继续吗？',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('取消'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            style: TextButton.styleFrom(
+              foregroundColor: Theme.of(context).colorScheme.error,
+            ),
+            child: const Text('确认恢复'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !mounted) return;
+
+    setState(() => _isRestoring = true);
+    final result = await BackupService.pickAndRestore();
+    if (!mounted) return;
+    setState(() => _isRestoring = false);
+
+    switch (result) {
+      case RestoreSuccess(clothingCount: final c, outfitCount: final o):
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('恢复成功：$c 件衣物，$o 套搭配')),
+        );
+      case RestoreError(message: final msg):
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(msg)),
+        );
+      case RestoreCancelled():
+        break;
+    }
+  }
+
+  Future<void> _showApiConfigDialog({
+    required String title,
+    required List<_ApiField> fields,
+    required List<Future<String>> loaders,
+    required Future<void> Function(List<String>) onSave,
+  }) async {
+    final currentValues = await Future.wait(loaders);
+    if (!mounted) return;
+
+    await showDialog<void>(
+      context: context,
+      builder: (context) => _ApiConfigDialog(
+        title: title,
+        fields: fields,
+        initialValues: currentValues,
+        onSave: onSave,
       ),
     );
   }
@@ -596,6 +757,7 @@ class _SettingsTile extends StatelessWidget {
     required this.title,
     this.subtitle,
     this.titleColor,
+    this.trailing,
     required this.onTap,
   });
 
@@ -603,7 +765,8 @@ class _SettingsTile extends StatelessWidget {
   final String title;
   final String? subtitle;
   final Color? titleColor;
-  final VoidCallback onTap;
+  final Widget? trailing;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -631,12 +794,110 @@ class _SettingsTile extends StatelessWidget {
                   ),
             )
           : null,
-      trailing: Icon(
-        Icons.chevron_right,
-        color: colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
-        size: 18,
-      ),
+      trailing: trailing ??
+          Icon(
+            Icons.chevron_right,
+            color: colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
+            size: 18,
+          ),
       onTap: onTap,
+    );
+  }
+}
+
+// ─── API 配置字段描述 ─────────────────────────────────────────────────────────
+
+class _ApiField {
+  const _ApiField({required this.key, required this.label});
+
+  final String key;
+  final String label;
+}
+
+// ─── API 配置弹窗 ─────────────────────────────────────────────────────────────
+
+class _ApiConfigDialog extends StatefulWidget {
+  const _ApiConfigDialog({
+    required this.title,
+    required this.fields,
+    required this.initialValues,
+    required this.onSave,
+  });
+
+  final String title;
+  final List<_ApiField> fields;
+  final List<String> initialValues;
+  final Future<void> Function(List<String>) onSave;
+
+  @override
+  State<_ApiConfigDialog> createState() => _ApiConfigDialogState();
+}
+
+class _ApiConfigDialogState extends State<_ApiConfigDialog> {
+  late final List<TextEditingController> _ctrls;
+  bool _saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrls = List.generate(
+      widget.fields.length,
+      (i) => TextEditingController(
+        text: i < widget.initialValues.length ? widget.initialValues[i] : '',
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    for (final c in _ctrls) {
+      c.dispose();
+    }
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text(widget.title, style: const TextStyle(fontWeight: FontWeight.bold)),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: List.generate(widget.fields.length, (i) {
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: TextField(
+                controller: _ctrls[i],
+                decoration: InputDecoration(labelText: widget.fields[i].label),
+              ),
+            );
+          }),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('取消'),
+        ),
+        TextButton(
+          onPressed: _saving
+              ? null
+              : () async {
+                  setState(() => _saving = true);
+                  final nav = Navigator.of(context);
+                  await widget.onSave(_ctrls.map((c) => c.text.trim()).toList());
+                  if (!mounted) return;
+                  nav.pop();
+                },
+          child: _saving
+              ? const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Text('保存'),
+        ),
+      ],
     );
   }
 }

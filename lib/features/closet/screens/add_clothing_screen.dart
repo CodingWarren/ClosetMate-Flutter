@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:closetmate/data/models/clothing_model.dart';
 import 'package:closetmate/data/repositories/clothing_repository.dart';
+import 'package:closetmate/data/services/image_storage_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
@@ -86,8 +87,11 @@ class _AddClothingScreenState extends State<AddClothingScreen> {
     if (_imageUris.length >= 5) return;
     final files = await _picker.pickMultiImage(limit: 5 - _imageUris.length);
     if (files.isEmpty) return;
+    final persisted = await ImageStorageService.copyAndCompressAll(
+      files.map((f) => f.path).toList(),
+    );
     setState(() {
-      _imageUris = [..._imageUris, ...files.map((f) => f.path)].take(5).toList();
+      _imageUris = [..._imageUris, ...persisted].take(5).toList();
     });
   }
 
@@ -95,8 +99,9 @@ class _AddClothingScreenState extends State<AddClothingScreen> {
     if (_imageUris.length >= 5) return;
     final file = await _picker.pickImage(source: ImageSource.camera);
     if (file == null) return;
+    final persisted = await ImageStorageService.copyAndCompress(file.path);
     setState(() {
-      _imageUris = [..._imageUris, file.path].take(5).toList();
+      _imageUris = [..._imageUris, persisted].take(5).toList();
     });
   }
 
