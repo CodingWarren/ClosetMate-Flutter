@@ -96,15 +96,33 @@ class _AddClothingScreenState extends State<AddClothingScreen> {
     if (_imageUris.length >= 5) return;
     final files = await _picker.pickMultiImage(limit: 5 - _imageUris.length);
     if (files.isEmpty) return;
+
+    // 立即弹出 Loading，让用户知道正在处理
+    setState(() => _isAiProcessing = true);
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const _AiLoadingDialog(),
+    );
+
+    // 后台压缩图片
     final persisted = await ImageStorageService.copyAndCompressAll(
       files.map((f) => f.path).toList(),
     );
+    if (!mounted) return;
     setState(() {
       _imageUris = [..._imageUris, ...persisted].take(5).toList();
     });
-    // 对第一张新图片触发 AI 处理
+
+    // 对第一张新图片触发 AI 处理（Loading 已经在显示了）
     if (persisted.isNotEmpty) {
-      await _triggerAiProcessing(persisted.first);
+      await _triggerAiProcessing(persisted.first, loadingAlreadyShown: true);
+    } else {
+      // 没有图片时关闭 Loading
+      if (mounted) {
+        Navigator.of(context, rootNavigator: true).pop();
+        setState(() => _isAiProcessing = false);
+      }
     }
   }
 
@@ -112,25 +130,40 @@ class _AddClothingScreenState extends State<AddClothingScreen> {
     if (_imageUris.length >= 5) return;
     final file = await _picker.pickImage(source: ImageSource.camera);
     if (file == null) return;
-    final persisted = await ImageStorageService.copyAndCompress(file.path);
-    setState(() {
-      _imageUris = [..._imageUris, persisted].take(5).toList();
-    });
-    await _triggerAiProcessing(persisted);
-  }
 
-  Future<void> _triggerAiProcessing(String imagePath) async {
-    setState(() {
-      _isAiProcessing = true;
-      _originalImageUri = imagePath;
-    });
-
-    // 弹出全屏 Loading 对话框，让用户知道 AI 正在处理
+    // 立即弹出 Loading
+    setState(() => _isAiProcessing = true);
     showDialog<void>(
       context: context,
       barrierDismissible: false,
       builder: (context) => const _AiLoadingDialog(),
     );
+
+    final persisted = await ImageStorageService.copyAndCompress(file.path);
+    if (!mounted) return;
+    setState(() {
+      _imageUris = [..._imageUris, persisted].take(5).toList();
+    });
+    await _triggerAiProcessing(persisted, loadingAlreadyShown: true);
+  }
+
+  Future<void> _triggerAiProcessing(
+    String imagePath, {
+    bool loadingAlreadyShown = false,
+  }) async {
+    if (!loadingAlreadyShown) {
+      setState(() {
+        _isAiProcessing = true;
+        _originalImageUri = imagePath;
+      });
+      showDialog<void>(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const _AiLoadingDialog(),
+      );
+    } else {
+      setState(() => _originalImageUri = imagePath);
+    }
 
     final removeBgResult = await RemoveBgService.removeBackground(imagePath);
 
