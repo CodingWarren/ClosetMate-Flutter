@@ -2,6 +2,7 @@ import 'package:closetmate/data/models/clothing_model.dart';
 import 'package:closetmate/data/models/outfit_model.dart';
 import 'package:closetmate/data/services/recommend/outfit_recommend_service.dart';
 import 'package:closetmate/features/outfit/outfit_controller.dart';
+import 'package:closetmate/shared/widgets/clothing_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -490,17 +491,13 @@ class _ClothingThumb extends StatelessWidget {
         color: colorScheme.primaryContainer,
         alignment: Alignment.center,
         child: imageUrl != null
-            ? Image.network(
-                imageUrl,
+            ? ClothingImage(
+                imageUrl: imageUrl,
                 fit: BoxFit.cover,
                 width: double.infinity,
                 height: double.infinity,
-                errorBuilder: (context, error, stackTrace) {
-                  return Text(
-                    _categoryEmoji(clothing.category),
-                    style: const TextStyle(fontSize: 16),
-                  );
-                },
+                fallbackIcon: Icons.checkroom,
+                fallbackIconSize: 16,
               )
             : Text(
                 _categoryEmoji(clothing.category),
@@ -642,17 +639,13 @@ class _OutfitCard extends StatelessWidget {
                         color: colorScheme.primaryContainer,
                         alignment: Alignment.center,
                         child: imageUrl != null
-                            ? Image.network(
-                                imageUrl,
+                            ? ClothingImage(
+                                imageUrl: imageUrl,
                                 fit: BoxFit.cover,
                                 width: 56,
                                 height: 56,
-                                errorBuilder: (context, error, stackTrace) {
-                                  return Text(
-                                    _categoryEmoji(clothing.category),
-                                    style: const TextStyle(fontSize: 20),
-                                  );
-                                },
+                                fallbackIcon: Icons.checkroom,
+                                fallbackIconSize: 20,
                               )
                             : Text(
                                 _categoryEmoji(clothing.category),

@@ -2,6 +2,7 @@ import 'package:closetmate/data/models/clothing_model.dart';
 import 'package:closetmate/data/models/outfit_model.dart';
 import 'package:closetmate/data/repositories/clothing_repository.dart';
 import 'package:closetmate/data/repositories/outfit_repository.dart';
+import 'package:closetmate/shared/widgets/clothing_image.dart';
 import 'package:flutter/material.dart';
 import 'package:uuid/uuid.dart';
 
@@ -319,14 +320,13 @@ class _SlotTile extends StatelessWidget {
                   color: colorScheme.primaryContainer,
                   alignment: Alignment.center,
                   child: selected!.imageUriList.isNotEmpty
-                      ? Image.network(
-                          selected!.imageUriList.first,
+                      ? ClothingImage(
+                          imageUrl: selected!.imageUriList.first,
                           fit: BoxFit.cover,
                           width: 44,
                           height: 44,
-                          errorBuilder: (context, error, stackTrace) {
-                            return Text(emoji, style: const TextStyle(fontSize: 20));
-                          },
+                          fallbackIcon: Icons.checkroom,
+                          fallbackIconSize: 20,
                         )
                       : Text(emoji, style: const TextStyle(fontSize: 20)),
                 ),
@@ -450,14 +450,13 @@ class _ClothingPickerSheet extends StatelessWidget {
                                   color: colorScheme.surfaceContainerHighest,
                                   alignment: Alignment.center,
                                   child: imageUrl != null
-                                      ? Image.network(
-                                          imageUrl,
+                                      ? ClothingImage(
+                                          imageUrl: imageUrl,
                                           fit: BoxFit.cover,
                                           width: double.infinity,
                                           height: double.infinity,
-                                          errorBuilder: (context, error, stackTrace) {
-                                            return const Icon(Icons.checkroom, size: 32);
-                                          },
+                                          fallbackIcon: Icons.checkroom,
+                                          fallbackIconSize: 32,
                                         )
                                       : const Icon(Icons.checkroom, size: 32),
                                 ),

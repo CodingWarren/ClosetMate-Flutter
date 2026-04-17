@@ -1,6 +1,7 @@
 import 'package:closetmate/data/models/clothing_model.dart';
 import 'package:closetmate/features/closet/closet_controller.dart';
 import 'package:closetmate/features/closet/widgets/filter_bottom_sheet.dart';
+import 'package:closetmate/shared/widgets/clothing_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -157,16 +158,11 @@ class _ClothingCard extends ConsumerWidget {
                         size: 42,
                         color: colorScheme.primary,
                       )
-                    : Image.network(
-                        imageUrl,
+                    : ClothingImage(
+                        imageUrl: imageUrl,
                         fit: BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) {
-                          return Icon(
-                            Icons.image_not_supported_outlined,
-                            size: 36,
-                            color: colorScheme.onSurfaceVariant,
-                          );
-                        },
+                        fallbackIcon: Icons.image_not_supported_outlined,
+                        fallbackIconSize: 36,
                       ),
               ),
             ),

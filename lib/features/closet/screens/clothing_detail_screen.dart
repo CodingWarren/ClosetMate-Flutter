@@ -1,5 +1,6 @@
 import 'package:closetmate/data/models/clothing_model.dart';
 import 'package:closetmate/data/repositories/clothing_repository.dart';
+import 'package:closetmate/shared/widgets/clothing_image.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
@@ -158,18 +159,13 @@ class _ClothingDetailScreenState extends State<ClothingDetailScreen> {
                           height: 360,
                           child: PageView.builder(
                             itemCount: item.imageUriList.length,
-                            itemBuilder: (context, index) {
+                      itemBuilder: (context, index) {
                               final imageUrl = item.imageUriList[index];
-                              return Image.network(
-                                imageUrl,
+                              return ClothingImage(
+                                imageUrl: imageUrl,
                                 fit: BoxFit.cover,
-                                errorBuilder: (context, error, stackTrace) {
-                                  return Container(
-                                    color: Theme.of(context).colorScheme.surfaceContainerHighest,
-                                    alignment: Alignment.center,
-                                    child: const Icon(Icons.image_not_supported_outlined, size: 40),
-                                  );
-                                },
+                                fallbackIcon: Icons.image_not_supported_outlined,
+                                fallbackIconSize: 40,
                               );
                             },
                           ),
