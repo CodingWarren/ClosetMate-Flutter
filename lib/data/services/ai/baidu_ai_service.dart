@@ -154,13 +154,75 @@ class BaiduAiService {
       }
     }
 
-    print('[BaiduAI] 最终结果: category=$category, colors=$colors, styles=$styles');
+    // 如果颜色/风格没有从关键词中匹配到，尝试从品类推断季节和风格
+    final inferredSeasons = _inferSeasonsFromCategory(category);
+    final inferredStyles = styles.isEmpty ? _inferStylesFromCategory(category) : styles;
+
+    print('[BaiduAI] 最终结果: category=$category, colors=$colors, styles=$inferredStyles, inferredSeasons=$inferredSeasons');
 
     return AiTagSuccess(
       category: category,
       colors: colors,
-      styles: styles,
+      styles: inferredStyles,
+      seasons: inferredSeasons,
     );
+  }
+
+  /// 根据品类推断常见季节
+  static List<String> _inferSeasonsFromCategory(String category) {
+    switch (category) {
+      case ClothingCategory.tShirt:
+      case ClothingCategory.skirt:
+        return ['夏', '春'];
+      case ClothingCategory.shirt:
+      case ClothingCategory.pants:
+        return ['春', '秋'];
+      case ClothingCategory.sweater:
+      case ClothingCategory.jacket:
+        return ['秋', '冬'];
+      case ClothingCategory.coat:
+      case ClothingCategory.downJacket:
+        return ['冬'];
+      case ClothingCategory.hoodie:
+        return ['春', '秋', '冬'];
+      case ClothingCategory.dress:
+        return ['春', '夏'];
+      case ClothingCategory.sportswear:
+        return ['春', '夏', '秋'];
+      case ClothingCategory.shoes:
+      case ClothingCategory.bag:
+      case ClothingCategory.accessory:
+        return ['四季'];
+      default:
+        return ['四季'];
+    }
+  }
+
+  /// 根据品类推断常见风格
+  static List<String> _inferStylesFromCategory(String category) {
+    switch (category) {
+      case ClothingCategory.tShirt:
+      case ClothingCategory.hoodie:
+        return ['休闲'];
+      case ClothingCategory.shirt:
+        return ['通勤', '休闲'];
+      case ClothingCategory.sweater:
+        return ['休闲', '通勤'];
+      case ClothingCategory.jacket:
+        return ['休闲', '街头'];
+      case ClothingCategory.coat:
+        return ['通勤', '正式'];
+      case ClothingCategory.downJacket:
+        return ['休闲', '户外'];
+      case ClothingCategory.dress:
+        return ['约会', '休闲'];
+      case ClothingCategory.sportswear:
+        return ['运动'];
+      case ClothingCategory.skirt:
+        return ['约会', '休闲'];
+      default:
+        return ['休闲'];
+    }
   }
 
   static String _mapCategory(String name) {
@@ -215,11 +277,13 @@ class AiTagSuccess extends AiTagResult {
     required this.category,
     required this.colors,
     required this.styles,
+    this.seasons = const [],
   });
 
   final String category;
   final List<String> colors;
   final List<String> styles;
+  final List<String> seasons;
 }
 
 class AiTagError extends AiTagResult {

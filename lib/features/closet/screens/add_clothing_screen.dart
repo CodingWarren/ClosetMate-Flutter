@@ -270,6 +270,9 @@ class _AddClothingScreenState extends State<AddClothingScreen> {
         if (_selectedCategory.isEmpty && result.category.isNotEmpty) {
           _selectedCategory = result.category;
         }
+        if (_selectedSeasons.isEmpty && result.seasons.isNotEmpty) {
+          _selectedSeasons = result.seasons.toSet();
+        }
         if (_selectedColors.isEmpty && result.colors.isNotEmpty) {
           _selectedColors = result.colors.toSet();
         }
