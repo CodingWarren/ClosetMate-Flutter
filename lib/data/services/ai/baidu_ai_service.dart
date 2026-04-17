@@ -3,7 +3,7 @@ import 'dart:io';
 
 import 'package:closetmate/data/models/clothing_model.dart';
 import 'package:closetmate/data/services/api_config_service.dart';
-import 'package:http/http.dart' as http;
+import 'package:closetmate/data/services/http_client.dart';
 
 /// 百度 AI 图像识别服务
 ///
@@ -61,7 +61,8 @@ class BaiduAiService {
       '&client_secret=$secretKey',
     );
 
-    final response = await http.post(uri).timeout(_timeout);
+    final client = createHttpClient();
+    final response = await client.post(uri).timeout(_timeout);
     if (response.statusCode != 200) return null;
 
     final json = jsonDecode(response.body) as Map<String, dynamic>;
@@ -77,7 +78,8 @@ class BaiduAiService {
       '?access_token=$accessToken',
     );
 
-    final response = await http
+    final client = createHttpClient();
+    final response = await client
         .post(
           uri,
           headers: {'Content-Type': 'application/x-www-form-urlencoded'},

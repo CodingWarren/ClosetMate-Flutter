@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:closetmate/data/services/api_config_service.dart';
+import 'package:closetmate/data/services/http_client.dart';
 import 'package:closetmate/data/services/weather/weather_service.dart';
 import 'package:http/http.dart' as http;
 
@@ -45,7 +46,8 @@ class QWeatherService {
       '?location=${Uri.encodeComponent(city)}&key=$apiKey',
     );
 
-    final response = await http.get(uri).timeout(_timeout);
+    final client = createHttpClient();
+    final response = await client.get(uri).timeout(_timeout);
     if (response.statusCode != 200) return null;
 
     final json = jsonDecode(response.body) as Map<String, dynamic>;
@@ -67,7 +69,8 @@ class QWeatherService {
       '?location=$locationId&key=$apiKey',
     );
 
-    final response = await http.get(uri).timeout(_timeout);
+    final client = createHttpClient();
+    final response = await client.get(uri).timeout(_timeout);
     if (response.statusCode != 200) {
       return WeatherError('天气 API 返回错误：HTTP ${response.statusCode}');
     }

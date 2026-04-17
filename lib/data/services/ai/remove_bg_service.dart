@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:closetmate/data/services/api_config_service.dart';
+import 'package:closetmate/data/services/http_client.dart';
 import 'package:closetmate/data/services/image_storage_service.dart';
 import 'package:http/http.dart' as http;
 import 'package:path/path.dart' as p;
@@ -28,6 +29,7 @@ class RemoveBgService {
     }
 
     try {
+      final client = createHttpClient();
       final request = http.MultipartRequest('POST', Uri.parse(_apiUrl))
         ..headers['X-Api-Key'] = apiKey
         ..fields['size'] = 'auto'
@@ -35,7 +37,7 @@ class RemoveBgService {
           await http.MultipartFile.fromPath('image_file', imagePath),
         );
 
-      final streamedResponse = await request.send().timeout(_timeout);
+      final streamedResponse = await client.send(request).timeout(_timeout);
       final response = await http.Response.fromStream(streamedResponse);
 
       if (response.statusCode == 200) {
