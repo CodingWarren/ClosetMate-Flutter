@@ -154,15 +154,19 @@ class BaiduAiService {
       }
     }
 
-    // 如果颜色/风格没有从关键词中匹配到，尝试从品类推断季节和风格
+    // 如果没有从关键词中匹配到，用默认值兜底
     final inferredSeasons = _inferSeasonsFromCategory(category);
     final inferredStyles = styles.isEmpty ? _inferStylesFromCategory(category) : styles;
+    // 颜色默认值：如果没有识别到颜色，给一个通用默认值
+    final inferredColors = colors.isEmpty ? ['黑'] : colors;
+    // 品类默认值：如果没有识别到品类，给"上衣"
+    final inferredCategory = category.isEmpty ? ClothingCategory.top : category;
 
-    print('[BaiduAI] 最终结果: category=$category, colors=$colors, styles=$inferredStyles, inferredSeasons=$inferredSeasons');
+    print('[BaiduAI] 最终结果: category=$inferredCategory, colors=$inferredColors, styles=$inferredStyles, seasons=$inferredSeasons');
 
     return AiTagSuccess(
-      category: category,
-      colors: colors,
+      category: inferredCategory,
+      colors: inferredColors,
       styles: inferredStyles,
       seasons: inferredSeasons,
     );
