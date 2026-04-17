@@ -99,6 +99,7 @@ class _AddClothingScreenState extends State<AddClothingScreen> {
 
     // 立即弹出 Loading，让用户知道正在处理
     setState(() => _isAiProcessing = true);
+    final nav = Navigator.of(context, rootNavigator: true);
     showDialog<void>(
       context: context,
       barrierDismissible: false,
@@ -120,7 +121,7 @@ class _AddClothingScreenState extends State<AddClothingScreen> {
     } else {
       // 没有图片时关闭 Loading
       if (mounted) {
-        Navigator.of(context, rootNavigator: true).pop();
+        nav.pop();
         setState(() => _isAiProcessing = false);
       }
     }
@@ -133,6 +134,7 @@ class _AddClothingScreenState extends State<AddClothingScreen> {
 
     // 立即弹出 Loading
     setState(() => _isAiProcessing = true);
+    final nav = Navigator.of(context, rootNavigator: true);
     showDialog<void>(
       context: context,
       barrierDismissible: false,
@@ -144,18 +146,21 @@ class _AddClothingScreenState extends State<AddClothingScreen> {
     setState(() {
       _imageUris = [..._imageUris, persisted].take(5).toList();
     });
-    await _triggerAiProcessing(persisted, loadingAlreadyShown: true);
+    await _triggerAiProcessing(persisted, loadingAlreadyShown: true, nav: nav);
   }
 
   Future<void> _triggerAiProcessing(
     String imagePath, {
     bool loadingAlreadyShown = false,
+    NavigatorState? nav,
   }) async {
+    NavigatorState? navigator = nav;
     if (!loadingAlreadyShown) {
       setState(() {
         _isAiProcessing = true;
         _originalImageUri = imagePath;
       });
+      navigator = Navigator.of(context, rootNavigator: true);
       showDialog<void>(
         context: context,
         barrierDismissible: false,
@@ -170,7 +175,7 @@ class _AddClothingScreenState extends State<AddClothingScreen> {
     if (!mounted) return;
 
     // 关闭 Loading 对话框
-    Navigator.of(context, rootNavigator: true).pop();
+    navigator?.pop();
     setState(() => _isAiProcessing = false);
 
     if (removeBgResult is RemoveBgSuccess) {
