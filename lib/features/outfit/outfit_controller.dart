@@ -4,6 +4,7 @@ import 'package:closetmate/data/repositories/clothing_repository.dart';
 import 'package:closetmate/data/repositories/outfit_repository.dart';
 import 'package:closetmate/data/repositories/repository_providers.dart';
 import 'package:closetmate/data/services/recommend/outfit_recommend_service.dart';
+import 'package:closetmate/data/services/weather/qweather_service.dart';
 import 'package:closetmate/data/services/weather/weather_service.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -126,16 +127,22 @@ class OutfitController extends StateNotifier<OutfitState> {
 
     state = state.copyWith(recommendState: const RecommendLoading());
 
-    // 使用 Mock 天气（20°C 晴天），后续替换为真实 API
-    _currentWeather = const WeatherInfo(
-      temperature: 20,
-      feelsLike: 20,
-      description: '晴',
-      icon: '100',
-      cityName: '北京',
-      windSpeed: '3',
-      humidity: '40',
-    );
+    // 尝试获取真实天气；失败时降级为 Mock 数据
+    final weatherResult = await QWeatherService.getWeatherByCity();
+    if (weatherResult is WeatherSuccess) {
+      _currentWeather = weatherResult.weather;
+    } else {
+      // 降级：使用 20°C 晴天 Mock
+      _currentWeather = const WeatherInfo(
+        temperature: 20,
+        feelsLike: 20,
+        description: '晴',
+        icon: '100',
+        cityName: '北京',
+        windSpeed: '3',
+        humidity: '40',
+      );
+    }
 
     final result = OutfitRecommendService.generateRecommendations(
       allClothing: state.allClothing,

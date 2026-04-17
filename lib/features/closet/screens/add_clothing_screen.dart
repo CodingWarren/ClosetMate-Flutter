@@ -2,6 +2,8 @@ import 'dart:io';
 
 import 'package:closetmate/data/models/clothing_model.dart';
 import 'package:closetmate/data/repositories/clothing_repository.dart';
+import 'package:closetmate/data/services/ai/baidu_ai_service.dart';
+import 'package:closetmate/data/services/ai/remove_bg_service.dart';
 import 'package:closetmate/data/services/image_storage_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -36,6 +38,13 @@ class _AddClothingScreenState extends State<AddClothingScreen> {
   Set<String> _selectedSeasons = {};
   Set<String> _selectedColors = {};
   Set<String> _selectedStyles = {};
+
+  // AI 状态
+  bool _isAiTagging = false;
+  bool _isAiProcessing = false;
+  String _aiTagMessage = '';
+  String _originalImageUri = '';
+  bool _imageProcessed = false;
 
   // Step 3 – detail info
   final _brandCtrl = TextEditingController();
@@ -93,6 +102,10 @@ class _AddClothingScreenState extends State<AddClothingScreen> {
     setState(() {
       _imageUris = [..._imageUris, ...persisted].take(5).toList();
     });
+    // 对第一张新图片触发 AI 处理
+    if (persisted.isNotEmpty) {
+      await _triggerAiProcessing(persisted.first);
+    }
   }
 
   Future<void> _takePhoto() async {
@@ -103,6 +116,170 @@ class _AddClothingScreenState extends State<AddClothingScreen> {
     setState(() {
       _imageUris = [..._imageUris, persisted].take(5).toList();
     });
+    await _triggerAiProcessing(persisted);
+  }
+
+  Future<void> _triggerAiProcessing(String imagePath) async {
+    // 1. Remove.bg 抠图
+    setState(() {
+      _isAiProcessing = true;
+      _originalImageUri = imagePath;
+    });
+
+    final removeBgResult = await RemoveBgService.removeBackground(imagePath);
+
+    if (!mounted) return;
+
+    if (removeBgResult is RemoveBgSuccess) {
+      // 弹出对比弹窗让用户选择
+      final useProcessed = await _showAiResultDialog(
+        originalPath: imagePath,
+        processedPath: removeBgResult.processedPath,
+      );
+      if (useProcessed == true && mounted) {
+        setState(() {
+          _imageUris = _imageUris.map((uri) {
+            return uri == imagePath ? removeBgResult.processedPath : uri;
+          }).toList();
+          _imageProcessed = true;
+        });
+      }
+    }
+
+    if (!mounted) return;
+    setState(() => _isAiProcessing = false);
+
+    // 2. 百度 AI 打标（进入步骤2时触发，这里先标记待处理）
+    // 实际打标在 _onEnterStep2 中执行
+  }
+
+  Future<bool?> _showAiResultDialog({
+    required String originalPath,
+    required String processedPath,
+  }) {
+    return showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: Row(
+          children: [
+            Icon(Icons.auto_awesome, color: Theme.of(context).colorScheme.primary, size: 20),
+            const SizedBox(width: 8),
+            const Text('AI 图片处理', style: TextStyle(fontWeight: FontWeight.bold)),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('选择你想使用的图片效果'),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    children: [
+                      const Text('原图', style: TextStyle(fontSize: 12)),
+                      const SizedBox(height: 4),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(8),
+                        child: Image.file(
+                          File(originalPath),
+                          height: 120,
+                          fit: BoxFit.cover,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.auto_awesome, size: 12, color: Theme.of(context).colorScheme.primary),
+                          const SizedBox(width: 4),
+                          Text(
+                            'AI 抠图',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Theme.of(context).colorScheme.primary,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(8),
+                        child: Image.file(
+                          File(processedPath),
+                          height: 120,
+                          fit: BoxFit.cover,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('使用原图'),
+          ),
+          FilledButton.icon(
+            onPressed: () => Navigator.of(context).pop(true),
+            icon: const Icon(Icons.auto_awesome, size: 14),
+            label: const Text('使用 AI 抠图'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _runBaiduAiTagging() async {
+    if (_imageUris.isEmpty) return;
+    setState(() {
+      _isAiTagging = true;
+      _aiTagMessage = 'AI 正在识别衣物信息...';
+    });
+
+    final result = await BaiduAiService.recognizeClothing(_imageUris.first);
+
+    if (!mounted) return;
+
+    if (result is AiTagSuccess) {
+      setState(() {
+        _isAiTagging = false;
+        _aiTagMessage = 'AI 已识别并预填标签，✨ 标记为 AI 推荐，可修改';
+        // 仅在用户尚未手动选择时才预填
+        if (_selectedCategory.isEmpty && result.category.isNotEmpty) {
+          _selectedCategory = result.category;
+        }
+        if (_selectedColors.isEmpty && result.colors.isNotEmpty) {
+          _selectedColors = result.colors.toSet();
+        }
+        if (_selectedStyles.isEmpty && result.styles.isNotEmpty) {
+          _selectedStyles = result.styles.toSet();
+        }
+      });
+    } else if (result is AiTagError) {
+      setState(() {
+        _isAiTagging = false;
+        _aiTagMessage = 'AI 识别失败：${result.message}，请手动选择标签';
+      });
+    }
+  }
+
+  // 进入步骤2时触发百度 AI 打标
+  void _onEnterStep2() {
+    if (_imageUris.isNotEmpty && _aiTagMessage.isEmpty) {
+      _runBaiduAiTagging();
+    }
   }
 
   bool get _isStep2Valid =>
@@ -153,6 +330,8 @@ class _AddClothingScreenState extends State<AddClothingScreen> {
           storageLocation: _storageLocationCtrl.text.trim(),
           status: _selectedStatus,
           notes: _notesCtrl.text.trim(),
+          originalImageUri: _originalImageUri,
+          imageProcessed: _imageProcessed,
           createdAt: now,
           updatedAt: now,
         ),
@@ -186,6 +365,8 @@ class _AddClothingScreenState extends State<AddClothingScreen> {
             child: _currentStep == 1
                 ? _Step1ImagePicker(
                     imageUris: _imageUris,
+                    isAiProcessing: _isAiProcessing,
+                    imageProcessed: _imageProcessed,
                     onPickGallery: _pickFromGallery,
                     onTakePhoto: _takePhoto,
                     onRemove: (uri) {
@@ -202,6 +383,8 @@ class _AddClothingScreenState extends State<AddClothingScreen> {
                         onColorsChange: (v) => setState(() => _selectedColors = v),
                         selectedStyles: _selectedStyles,
                         onStylesChange: (v) => setState(() => _selectedStyles = v),
+                        isAiTagging: _isAiTagging,
+                        aiTagMessage: _aiTagMessage,
                       )
                     : _Step3DetailInfo(
                         brandCtrl: _brandCtrl,
@@ -224,7 +407,11 @@ class _AddClothingScreenState extends State<AddClothingScreen> {
             onBack: () => setState(() => _currentStep--),
             onNext: () {
               if (_currentStep < 3) {
-                setState(() => _currentStep++);
+                final nextStep = _currentStep + 1;
+                setState(() => _currentStep = nextStep);
+                if (nextStep == 2) {
+                  _onEnterStep2();
+                }
               } else {
                 _save();
               }
@@ -306,12 +493,16 @@ class _StepIndicator extends StatelessWidget {
 class _Step1ImagePicker extends StatelessWidget {
   const _Step1ImagePicker({
     required this.imageUris,
+    required this.isAiProcessing,
+    required this.imageProcessed,
     required this.onPickGallery,
     required this.onTakePhoto,
     required this.onRemove,
   });
 
   final List<String> imageUris;
+  final bool isAiProcessing;
+  final bool imageProcessed;
   final VoidCallback onPickGallery;
   final VoidCallback onTakePhoto;
   final ValueChanged<String> onRemove;
@@ -338,7 +529,50 @@ class _Step1ImagePicker extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 16),
-          if (imageUris.isEmpty)
+          if (isAiProcessing)
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: colorScheme.primaryContainer,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(
+                children: [
+                  SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: colorScheme.primary,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Text(
+                    'AI 正在处理图片...',
+                    style: TextStyle(fontSize: 12, color: colorScheme.onPrimaryContainer),
+                  ),
+                ],
+              ),
+            )
+          else if (imageProcessed)
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: colorScheme.primaryContainer,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.check_circle, size: 16, color: colorScheme.primary),
+                  const SizedBox(width: 10),
+                  Text(
+                    '已使用 AI 抠图效果',
+                    style: TextStyle(fontSize: 12, color: colorScheme.onPrimaryContainer),
+                  ),
+                ],
+              ),
+            )
+          else if (imageUris.isEmpty)
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
@@ -495,6 +729,8 @@ class _Step2BasicInfo extends StatelessWidget {
     required this.onColorsChange,
     required this.selectedStyles,
     required this.onStylesChange,
+    this.isAiTagging = false,
+    this.aiTagMessage = '',
   });
 
   final String selectedCategory;
@@ -505,6 +741,8 @@ class _Step2BasicInfo extends StatelessWidget {
   final ValueChanged<Set<String>> onColorsChange;
   final Set<String> selectedStyles;
   final ValueChanged<Set<String>> onStylesChange;
+  final bool isAiTagging;
+  final String aiTagMessage;
 
   static const _colorOptions = [
     '白', '黑', '灰', '米', '红', '粉', '橙', '黄', '绿', '蓝', '紫', '棕', '花纹', '条纹', '格纹',
@@ -529,6 +767,45 @@ class _Step2BasicInfo extends StatelessWidget {
               color: Theme.of(context).colorScheme.onSurfaceVariant,
             ),
           ),
+          if (isAiTagging || aiTagMessage.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.primaryContainer,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(
+                children: [
+                  if (isAiTagging)
+                    SizedBox(
+                      width: 14,
+                      height: 14,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
+                    )
+                  else
+                    Icon(
+                      Icons.auto_awesome,
+                      size: 14,
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      aiTagMessage,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Theme.of(context).colorScheme.onPrimaryContainer,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
           const SizedBox(height: 20),
           _FormSection(
             title: '品类 *',
