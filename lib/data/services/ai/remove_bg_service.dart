@@ -28,6 +28,7 @@ class RemoveBgService {
       return const RemoveBgError('图片文件不存在');
     }
 
+    print('[RemoveBg] 开始抠图: $imagePath');
     try {
       final client = createHttpClient();
       final request = http.MultipartRequest('POST', Uri.parse(_apiUrl))
@@ -37,21 +38,27 @@ class RemoveBgService {
           await http.MultipartFile.fromPath('image_file', imagePath),
         );
 
+      print('[RemoveBg] 发起请求...');
       final streamedResponse = await client.send(request).timeout(_timeout);
       final response = await http.Response.fromStream(streamedResponse);
 
+      print('[RemoveBg] 响应状态: ${response.statusCode}');
+
       if (response.statusCode == 200) {
-        // 保存处理后的图片到私有目录
         final processedPath = await _saveProcessedImage(response.bodyBytes);
+        print('[RemoveBg] 抠图成功，保存到: $processedPath');
         return RemoveBgSuccess(processedPath);
       } else {
+        print('[RemoveBg] 失败响应体: ${response.body}');
         return RemoveBgError(
           'Remove.bg 返回错误：HTTP ${response.statusCode}',
         );
       }
-    } on SocketException {
+    } on SocketException catch (e) {
+      print('[RemoveBg] 网络错误: $e');
       return const RemoveBgError('网络连接失败，请检查网络');
     } catch (e) {
+      print('[RemoveBg] 未知错误: $e');
       return RemoveBgError('抠图失败：$e');
     }
   }
