@@ -11,12 +11,34 @@ class ApiConfigService {
   static const String _keyBaiduAiAppId = 'api_baidu_app_id';
   static const String _keyBaiduAiApiKey = 'api_baidu_api_key';
   static const String _keyBaiduAiSecretKey = 'api_baidu_secret_key';
+  static const String _keyInitialized = 'api_keys_initialized';
+
+  // ─── 默认 Key（从原版 Android 项目迁移） ─────────────────────────────────
+
+  static const String _defaultQWeatherKey = 'b1addc8c550240c99d731e9e926fd8b6';
+  static const String _defaultQWeatherCity = '北京';
+  static const String _defaultRemoveBgKey = 'etiNr7vQKtGFMQbHtj34J2G6';
+  static const String _defaultBaiduApiKey = 'RT2EqRIcwsgEX1U2TYXq9zca';
+  static const String _defaultBaiduSecretKey = 'MMT0GH5tkLT1iVIOPldOKjxM9J1SUUYN';
+
+  /// 首次启动时写入默认 Key（不覆盖用户已修改的值）
+  static Future<void> initDefaultKeys() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (prefs.getBool(_keyInitialized) == true) return;
+
+    await prefs.setString(_keyQWeatherApiKey, _defaultQWeatherKey);
+    await prefs.setString(_keyQWeatherCity, _defaultQWeatherCity);
+    await prefs.setString(_keyRemoveBgApiKey, _defaultRemoveBgKey);
+    await prefs.setString(_keyBaiduAiApiKey, _defaultBaiduApiKey);
+    await prefs.setString(_keyBaiduAiSecretKey, _defaultBaiduSecretKey);
+    await prefs.setBool(_keyInitialized, true);
+  }
 
   // ─── 和风天气 ─────────────────────────────────────────────────────────────
 
   static Future<String> get qWeatherApiKey async {
     final prefs = await SharedPreferences.getInstance();
-    return prefs.getString(_keyQWeatherApiKey) ?? '';
+    return prefs.getString(_keyQWeatherApiKey) ?? _defaultQWeatherKey;
   }
 
   static Future<void> setQWeatherApiKey(String key) async {
@@ -26,7 +48,7 @@ class ApiConfigService {
 
   static Future<String> get qWeatherCity async {
     final prefs = await SharedPreferences.getInstance();
-    return prefs.getString(_keyQWeatherCity) ?? '北京';
+    return prefs.getString(_keyQWeatherCity) ?? _defaultQWeatherCity;
   }
 
   static Future<void> setQWeatherCity(String city) async {
@@ -38,7 +60,7 @@ class ApiConfigService {
 
   static Future<String> get removeBgApiKey async {
     final prefs = await SharedPreferences.getInstance();
-    return prefs.getString(_keyRemoveBgApiKey) ?? '';
+    return prefs.getString(_keyRemoveBgApiKey) ?? _defaultRemoveBgKey;
   }
 
   static Future<void> setRemoveBgApiKey(String key) async {
@@ -55,12 +77,12 @@ class ApiConfigService {
 
   static Future<String> get baiduApiKey async {
     final prefs = await SharedPreferences.getInstance();
-    return prefs.getString(_keyBaiduAiApiKey) ?? '';
+    return prefs.getString(_keyBaiduAiApiKey) ?? _defaultBaiduApiKey;
   }
 
   static Future<String> get baiduSecretKey async {
     final prefs = await SharedPreferences.getInstance();
-    return prefs.getString(_keyBaiduAiSecretKey) ?? '';
+    return prefs.getString(_keyBaiduAiSecretKey) ?? _defaultBaiduSecretKey;
   }
 
   static Future<void> setBaiduCredentials({

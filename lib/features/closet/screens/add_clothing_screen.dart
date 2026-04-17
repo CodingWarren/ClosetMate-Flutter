@@ -4,7 +4,6 @@ import 'package:closetmate/data/models/clothing_model.dart';
 import 'package:closetmate/data/repositories/clothing_repository.dart';
 import 'package:closetmate/data/services/ai/baidu_ai_service.dart';
 import 'package:closetmate/data/services/ai/remove_bg_service.dart';
-import 'package:closetmate/data/services/api_config_service.dart';
 import 'package:closetmate/data/services/image_storage_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -121,42 +120,51 @@ class _AddClothingScreenState extends State<AddClothingScreen> {
   }
 
   Future<void> _triggerAiProcessing(String imagePath) async {
-    // API Key 未配置时直接跳过，不发起网络请求
-    final apiKey = await ApiConfigService.removeBgApiKey;
-    if (apiKey.isEmpty) return;
-
-    // 标记处理中（UI 立即响应）
     setState(() {
       _isAiProcessing = true;
       _originalImageUri = imagePath;
     });
 
-    // 后台异步处理，不阻塞 UI
-    RemoveBgService.removeBackground(imagePath).then((removeBgResult) async {
-      if (!mounted) return;
-      setState(() => _isAiProcessing = false);
+    // 弹出全屏 Loading 对话框，让用户知道 AI 正在处理
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const _AiLoadingDialog(),
+    );
 
-      if (removeBgResult is RemoveBgSuccess) {
-        // 弹出对比弹窗让用户选择
-        final useProcessed = await _showAiResultDialog(
-          originalPath: imagePath,
-          processedPath: removeBgResult.processedPath,
-        );
-        if (useProcessed == true && mounted) {
-          setState(() {
-            _imageUris = _imageUris.map((uri) {
-              return uri == imagePath ? removeBgResult.processedPath : uri;
-            }).toList();
-            _imageProcessed = true;
-          });
-        }
-      } else {
-        // 失败时静默处理，不打扰用户
-        if (mounted) setState(() => _isAiProcessing = false);
+    final removeBgResult = await RemoveBgService.removeBackground(imagePath);
+
+    if (!mounted) return;
+
+    // 关闭 Loading 对话框
+    Navigator.of(context, rootNavigator: true).pop();
+    setState(() => _isAiProcessing = false);
+
+    if (removeBgResult is RemoveBgSuccess) {
+      // 弹出对比弹窗让用户选择
+      final useProcessed = await _showAiResultDialog(
+        originalPath: imagePath,
+        processedPath: removeBgResult.processedPath,
+      );
+      if (useProcessed == true && mounted) {
+        setState(() {
+          _imageUris = _imageUris.map((uri) {
+            return uri == imagePath ? removeBgResult.processedPath : uri;
+          }).toList();
+          _imageProcessed = true;
+        });
       }
-    }).catchError((e) {
-      if (mounted) setState(() => _isAiProcessing = false);
-    });
+    } else if (removeBgResult is RemoveBgError) {
+      // 失败时显示 SnackBar 提示
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('AI 抠图失败：${removeBgResult.message}'),
+            action: SnackBarAction(label: '知道了', onPressed: () {}),
+          ),
+        );
+      }
+    }
   }
 
   Future<bool?> _showAiResultDialog({
@@ -1055,6 +1063,58 @@ class _FormSection extends StatelessWidget {
         const SizedBox(height: 10),
         child,
       ],
+    );
+  }
+}
+
+// ─── AI Loading 对话框 ────────────────────────────────────────────────────────
+
+class _AiLoadingDialog extends StatelessWidget {
+  const _AiLoadingDialog();
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Dialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      child: Padding(
+        padding: const EdgeInsets.all(28),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SizedBox(
+              width: 56,
+              height: 56,
+              child: CircularProgressIndicator(
+                strokeWidth: 3,
+                color: colorScheme.primary,
+              ),
+            ),
+            const SizedBox(height: 20),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.auto_awesome, size: 16, color: colorScheme.primary),
+                const SizedBox(width: 6),
+                const Text(
+                  'AI 正在处理图片',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              '自动去除背景，生成干净商品图\n请稍候...',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 13,
+                color: colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

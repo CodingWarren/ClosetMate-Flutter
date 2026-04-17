@@ -1,12 +1,15 @@
 import 'package:closetmate/core/navigation/app_router.dart';
 import 'package:closetmate/core/theme/app_theme.dart';
+import 'package:closetmate/data/services/api_config_service.dart';
 import 'package:closetmate/data/services/app_lock_service.dart';
 import 'package:closetmate/features/lock/screens/lock_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-void main() {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  // 首次启动时写入默认 API Key
+  await ApiConfigService.initDefaultKeys();
   runApp(const ProviderScope(child: ClosetMateApp()));
 }
 
