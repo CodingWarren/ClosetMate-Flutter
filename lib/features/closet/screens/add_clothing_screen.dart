@@ -289,7 +289,9 @@ class _AddClothingScreenState extends State<AddClothingScreen> {
   }
 
   void _onEnterStep2() {
-    if (_imageUris.isNotEmpty && _aiTagMessage.isEmpty) {
+    // 编辑模式下不自动触发 AI 识别，避免覆盖用户已有的标签数据
+    final isEditMode = widget.editClothingId != null;
+    if (!isEditMode && _imageUris.isNotEmpty && _aiTagMessage.isEmpty) {
       _runBaiduAiTagging();
     }
   }
