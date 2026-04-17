@@ -41,11 +41,11 @@ class _AddClothingScreenState extends State<AddClothingScreen> {
 
   // AI 状态
   bool _isAiTagging = false;
-  bool _isAiProcessing = false;
-  bool _isLoadingDialogOpen = false;
   String _aiTagMessage = '';
   String _originalImageUri = '';
   bool _imageProcessed = false;
+  // 正在处理的图片索引（-1 表示没有）
+  int _processingImageIndex = -1;
 
   // Step 3 – detail info
   final _brandCtrl = TextEditingController();
@@ -93,49 +93,24 @@ class _AddClothingScreenState extends State<AddClothingScreen> {
     });
   }
 
-  void _showLoadingDialog() {
-    if (_isLoadingDialogOpen) return;
-    _isLoadingDialogOpen = true;
-    showDialog<void>(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => const _AiLoadingDialog(),
-    );
-  }
-
-  void _closeLoadingDialog() {
-    if (!_isLoadingDialogOpen) return;
-    _isLoadingDialogOpen = false;
-    if (mounted) {
-      Navigator.of(context, rootNavigator: true).pop();
-    }
-  }
-
   Future<void> _pickFromGallery() async {
     if (_imageUris.length >= 5) return;
     final files = await _picker.pickMultiImage(limit: 5 - _imageUris.length);
     if (files.isEmpty) return;
 
-    // 立即弹出 Loading，让用户知道正在处理
-    setState(() => _isAiProcessing = true);
-    _showLoadingDialog();
-
-    // 后台压缩图片
+    // 先压缩图片（后台，不阻塞 UI）
     final persisted = await ImageStorageService.copyAndCompressAll(
       files.map((f) => f.path).toList(),
     );
     if (!mounted) return;
-    setState(() {
-      _imageUris = [..._imageUris, ...persisted].take(5).toList();
-    });
 
-    // 对第一张新图片触发 AI 处理（Loading 已经在显示了）
+    final newUris = [..._imageUris, ...persisted].take(5).toList();
+    setState(() => _imageUris = newUris);
+
+    // 对第一张新图片触发 AI 处理（非阻塞，在卡片上显示遮罩）
     if (persisted.isNotEmpty) {
-      await _triggerAiProcessing(persisted.first, loadingAlreadyShown: true);
-    } else {
-      // 没有图片时关闭 Loading
-      _closeLoadingDialog();
-      setState(() => _isAiProcessing = false);
+      final idx = newUris.indexOf(persisted.first);
+      _triggerAiProcessingAsync(persisted.first, idx);
     }
   }
 
@@ -144,65 +119,57 @@ class _AddClothingScreenState extends State<AddClothingScreen> {
     final file = await _picker.pickImage(source: ImageSource.camera);
     if (file == null) return;
 
-    // 立即弹出 Loading
-    setState(() => _isAiProcessing = true);
-    _showLoadingDialog();
-
     final persisted = await ImageStorageService.copyAndCompress(file.path);
     if (!mounted) return;
-    setState(() {
-      _imageUris = [..._imageUris, persisted].take(5).toList();
-    });
-    await _triggerAiProcessing(persisted, loadingAlreadyShown: true);
+
+    final newUris = [..._imageUris, persisted].take(5).toList();
+    setState(() => _imageUris = newUris);
+
+    final idx = newUris.indexOf(persisted);
+    _triggerAiProcessingAsync(persisted, idx);
   }
 
-  Future<void> _triggerAiProcessing(
-    String imagePath, {
-    bool loadingAlreadyShown = false,
-  }) async {
-    if (!loadingAlreadyShown) {
-      setState(() {
-        _isAiProcessing = true;
-        _originalImageUri = imagePath;
-      });
-      _showLoadingDialog();
-    } else {
-      setState(() => _originalImageUri = imagePath);
-    }
+  /// 非阻塞 AI 抠图：在图片卡片上显示遮罩，不阻塞表单操作
+  void _triggerAiProcessingAsync(String imagePath, int imageIndex) {
+    setState(() {
+      _processingImageIndex = imageIndex;
+      _originalImageUri = imagePath;
+    });
 
-    final removeBgResult = await RemoveBgService.removeBackground(imagePath);
+    RemoveBgService.removeBackground(imagePath).then((result) async {
+      if (!mounted) return;
+      setState(() => _processingImageIndex = -1);
 
-    if (!mounted) return;
-
-    // 关闭 Loading 对话框
-    _closeLoadingDialog();
-    setState(() => _isAiProcessing = false);
-
-    if (removeBgResult is RemoveBgSuccess) {
-      // 弹出对比弹窗让用户选择
-      final useProcessed = await _showAiResultDialog(
-        originalPath: imagePath,
-        processedPath: removeBgResult.processedPath,
-      );
-      if (useProcessed == true && mounted) {
-        setState(() {
-          _imageUris = _imageUris.map((uri) {
-            return uri == imagePath ? removeBgResult.processedPath : uri;
-          }).toList();
-          _imageProcessed = true;
-        });
-      }
-    } else if (removeBgResult is RemoveBgError) {
-      // 失败时显示 SnackBar 提示
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('AI 抠图失败：${removeBgResult.message}'),
-            action: SnackBarAction(label: '知道了', onPressed: () {}),
-          ),
+      if (result is RemoveBgSuccess) {
+        // 弹出对比弹窗让用户选择
+        final useProcessed = await _showAiResultDialog(
+          originalPath: imagePath,
+          processedPath: result.processedPath,
         );
+        if (useProcessed == true && mounted) {
+          setState(() {
+            _imageUris = _imageUris.map((uri) {
+              return uri == imagePath ? result.processedPath : uri;
+            }).toList();
+            _imageProcessed = true;
+          });
+        }
+      } else if (result is RemoveBgError) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('AI 抠图失败：${result.message}'),
+              action: SnackBarAction(label: '知道了', onPressed: () {}),
+            ),
+          );
+        }
       }
-    }
+    });
+  }
+
+  /// 手动重新触发 AI 抠图（点击图片上的 ✨ 按钮）
+  void _retriggerAi(String imagePath, int imageIndex) {
+    _triggerAiProcessingAsync(imagePath, imageIndex);
   }
 
   Future<bool?> _showAiResultDialog({
@@ -234,11 +201,7 @@ class _AddClothingScreenState extends State<AddClothingScreen> {
                       const SizedBox(height: 4),
                       ClipRRect(
                         borderRadius: BorderRadius.circular(8),
-                        child: Image.file(
-                          File(originalPath),
-                          height: 120,
-                          fit: BoxFit.cover,
-                        ),
+                        child: Image.file(File(originalPath), height: 120, fit: BoxFit.cover),
                       ),
                     ],
                   ),
@@ -265,11 +228,7 @@ class _AddClothingScreenState extends State<AddClothingScreen> {
                       const SizedBox(height: 4),
                       ClipRRect(
                         borderRadius: BorderRadius.circular(8),
-                        child: Image.file(
-                          File(processedPath),
-                          height: 120,
-                          fit: BoxFit.cover,
-                        ),
+                        child: Image.file(File(processedPath), height: 120, fit: BoxFit.cover),
                       ),
                     ],
                   ),
@@ -308,7 +267,6 @@ class _AddClothingScreenState extends State<AddClothingScreen> {
       setState(() {
         _isAiTagging = false;
         _aiTagMessage = 'AI 已识别并预填标签，✨ 标记为 AI 推荐，可修改';
-        // 仅在用户尚未手动选择时才预填
         if (_selectedCategory.isEmpty && result.category.isNotEmpty) {
           _selectedCategory = result.category;
         }
@@ -327,7 +285,6 @@ class _AddClothingScreenState extends State<AddClothingScreen> {
     }
   }
 
-  // 进入步骤2时触发百度 AI 打标
   void _onEnterStep2() {
     if (_imageUris.isNotEmpty && _aiTagMessage.isEmpty) {
       _runBaiduAiTagging();
@@ -417,13 +374,14 @@ class _AddClothingScreenState extends State<AddClothingScreen> {
             child: _currentStep == 1
                 ? _Step1ImagePicker(
                     imageUris: _imageUris,
-                    isAiProcessing: _isAiProcessing,
+                    processingIndex: _processingImageIndex,
                     imageProcessed: _imageProcessed,
                     onPickGallery: _pickFromGallery,
                     onTakePhoto: _takePhoto,
                     onRemove: (uri) {
                       setState(() => _imageUris.remove(uri));
                     },
+                    onRetriggerAi: _retriggerAi,
                   )
                 : _currentStep == 2
                     ? _Step2BasicInfo(
@@ -461,9 +419,7 @@ class _AddClothingScreenState extends State<AddClothingScreen> {
               if (_currentStep < 3) {
                 final nextStep = _currentStep + 1;
                 setState(() => _currentStep = nextStep);
-                if (nextStep == 2) {
-                  _onEnterStep2();
-                }
+                if (nextStep == 2) _onEnterStep2();
               } else {
                 _save();
               }
@@ -514,9 +470,7 @@ class _StepIndicator extends StatelessWidget {
                           '$step',
                           style: TextStyle(
                             fontSize: 12,
-                            color: isActive
-                                ? colorScheme.onPrimary
-                                : colorScheme.onSurfaceVariant,
+                            color: isActive ? colorScheme.onPrimary : colorScheme.onSurfaceVariant,
                           ),
                         ),
                 ),
@@ -526,9 +480,7 @@ class _StepIndicator extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 12,
                     fontWeight: isActive ? FontWeight.w600 : FontWeight.normal,
-                    color: (isActive || isDone)
-                        ? colorScheme.primary
-                        : colorScheme.onSurfaceVariant,
+                    color: (isActive || isDone) ? colorScheme.primary : colorScheme.onSurfaceVariant,
                   ),
                 ),
               ],
@@ -540,24 +492,26 @@ class _StepIndicator extends StatelessWidget {
   }
 }
 
-// ─── 步骤1：图片 ──────────────────────────────────────────────────────────────
+// ─── 步骤1：图片（含卡片级 AI 处理遮罩）────────────────────────────────────────
 
 class _Step1ImagePicker extends StatelessWidget {
   const _Step1ImagePicker({
     required this.imageUris,
-    required this.isAiProcessing,
+    required this.processingIndex,
     required this.imageProcessed,
     required this.onPickGallery,
     required this.onTakePhoto,
     required this.onRemove,
+    required this.onRetriggerAi,
   });
 
   final List<String> imageUris;
-  final bool isAiProcessing;
+  final int processingIndex;
   final bool imageProcessed;
   final VoidCallback onPickGallery;
   final VoidCallback onTakePhoto;
   final ValueChanged<String> onRemove;
+  final void Function(String uri, int index) onRetriggerAi;
 
   @override
   Widget build(BuildContext context) {
@@ -568,89 +522,37 @@ class _Step1ImagePicker extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            '上传衣物图片',
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-          ),
+          const Text('上传衣物图片', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
           const SizedBox(height: 4),
           Text(
             '最多5张，支持拍照或从相册选择（可跳过）',
-            style: TextStyle(
-              fontSize: 12,
-              color: colorScheme.onSurfaceVariant,
-            ),
+            style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant),
           ),
           const SizedBox(height: 16),
-          if (isAiProcessing)
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: colorScheme.primaryContainer,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Row(
-                children: [
-                  SizedBox(
-                    width: 16,
-                    height: 16,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: colorScheme.primary,
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Text(
-                    'AI 正在处理图片...',
-                    style: TextStyle(fontSize: 12, color: colorScheme.onPrimaryContainer),
-                  ),
-                ],
-              ),
-            )
-          else if (imageProcessed)
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: colorScheme.primaryContainer,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Row(
-                children: [
-                  Icon(Icons.check_circle, size: 16, color: colorScheme.primary),
-                  const SizedBox(width: 10),
-                  Text(
-                    '已使用 AI 抠图效果',
-                    style: TextStyle(fontSize: 12, color: colorScheme.onPrimaryContainer),
-                  ),
-                ],
-              ),
+          // AI 功能说明 / 已处理标记
+          if (imageProcessed)
+            _InfoBanner(
+              icon: Icons.check_circle,
+              text: '已使用 AI 抠图效果',
+              color: colorScheme.primaryContainer,
+              iconColor: colorScheme.primary,
             )
           else if (imageUris.isEmpty)
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: colorScheme.primaryContainer,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Row(
-                children: [
-                  Icon(Icons.auto_awesome, size: 18, color: colorScheme.primary),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      '上传图片后，AI 将自动去除背景，生成干净的商品图效果',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: colorScheme.onPrimaryContainer,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
+            _InfoBanner(
+              icon: Icons.auto_awesome,
+              text: '上传图片后，AI 将自动去除背景，生成干净的商品图效果',
+              color: colorScheme.primaryContainer,
+              iconColor: colorScheme.primary,
             ),
           const SizedBox(height: 16),
+          // 图片网格（最多5张）
           Row(
             children: [
-              ...imageUris.take(5).map((uri) {
+              ...imageUris.take(5).toList().asMap().entries.map((entry) {
+                final index = entry.key;
+                final uri = entry.value;
+                final isProcessing = index == processingIndex;
+
                 return Expanded(
                   child: Padding(
                     padding: const EdgeInsets.only(right: 8),
@@ -658,6 +560,7 @@ class _Step1ImagePicker extends StatelessWidget {
                       aspectRatio: 3 / 4,
                       child: Stack(
                         children: [
+                          // 图片
                           ClipRRect(
                             borderRadius: BorderRadius.circular(10),
                             child: Image.file(
@@ -673,32 +576,78 @@ class _Step1ImagePicker extends StatelessWidget {
                               },
                             ),
                           ),
-                          Positioned(
-                            top: 4,
-                            right: 4,
-                            child: GestureDetector(
-                              onTap: () => onRemove(uri),
-                              child: Container(
-                                width: 22,
-                                height: 22,
-                                decoration: BoxDecoration(
-                                  color: colorScheme.error,
-                                  shape: BoxShape.circle,
-                                ),
-                                child: Icon(
-                                  Icons.close,
-                                  size: 14,
-                                  color: colorScheme.onError,
+                          // AI 处理中遮罩（仅当前处理的图片）
+                          if (isProcessing)
+                            Positioned.fill(
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(10),
+                                child: Container(
+                                  color: Colors.black.withValues(alpha: 0.5),
+                                  alignment: Alignment.center,
+                                  child: const Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      SizedBox(
+                                        width: 24,
+                                        height: 24,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                          color: Colors.white,
+                                        ),
+                                      ),
+                                      SizedBox(height: 4),
+                                      Text(
+                                        'AI处理中',
+                                        style: TextStyle(color: Colors.white, fontSize: 11),
+                                      ),
+                                    ],
+                                  ),
                                 ),
                               ),
                             ),
-                          ),
+                          // 删除按钮（处理中时隐藏）
+                          if (!isProcessing)
+                            Positioned(
+                              top: 4,
+                              right: 4,
+                              child: GestureDetector(
+                                onTap: () => onRemove(uri),
+                                child: Container(
+                                  width: 22,
+                                  height: 22,
+                                  decoration: BoxDecoration(
+                                    color: colorScheme.error,
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: Icon(Icons.close, size: 14, color: colorScheme.onError),
+                                ),
+                              ),
+                            ),
+                          // 重新触发 AI 按钮（仅第一张图片，且没有在处理中）
+                          if (!isProcessing && index == 0 && processingIndex == -1)
+                            Positioned(
+                              bottom: 4,
+                              right: 4,
+                              child: GestureDetector(
+                                onTap: () => onRetriggerAi(uri, index),
+                                child: Container(
+                                  width: 26,
+                                  height: 26,
+                                  decoration: BoxDecoration(
+                                    color: colorScheme.primary,
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: Icon(Icons.auto_awesome, size: 14, color: colorScheme.onPrimary),
+                                ),
+                              ),
+                            ),
                         ],
                       ),
                     ),
                   ),
                 );
               }),
+              // 添加按钮（未满5张时显示）
               if (imageUris.length < 5)
                 Expanded(
                   child: GestureDetector(
@@ -707,33 +656,22 @@ class _Step1ImagePicker extends StatelessWidget {
                       aspectRatio: 3 / 4,
                       child: Container(
                         decoration: BoxDecoration(
-                          border: Border.all(
-                            color: colorScheme.outline.withValues(alpha: 0.5),
-                          ),
+                          border: Border.all(color: colorScheme.outline.withValues(alpha: 0.5)),
                           borderRadius: BorderRadius.circular(10),
                         ),
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Icon(
-                              Icons.add_photo_alternate_outlined,
-                              size: 28,
-                              color: colorScheme.onSurfaceVariant,
-                            ),
+                            Icon(Icons.add_photo_alternate_outlined, size: 28, color: colorScheme.onSurfaceVariant),
                             const SizedBox(height: 4),
-                            Text(
-                              '添加',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: colorScheme.onSurfaceVariant,
-                              ),
-                            ),
+                            Text('添加', style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant)),
                           ],
                         ),
                       ),
                     ),
                   ),
                 ),
+              // 空位占位
               ...List.generate(
                 (5 - imageUris.length - 1).clamp(0, 5),
                 (_) => const Expanded(child: SizedBox()),
@@ -745,7 +683,7 @@ class _Step1ImagePicker extends StatelessWidget {
             children: [
               Expanded(
                 child: FilledButton.icon(
-                  onPressed: imageUris.length < 5 ? onTakePhoto : null,
+                  onPressed: imageUris.length < 5 && processingIndex == -1 ? onTakePhoto : null,
                   icon: const Icon(Icons.camera_alt, size: 18),
                   label: const Text('拍照'),
                   style: FilledButton.styleFrom(
@@ -756,12 +694,43 @@ class _Step1ImagePicker extends StatelessWidget {
               const SizedBox(width: 12),
               Expanded(
                 child: OutlinedButton.icon(
-                  onPressed: imageUris.length < 5 ? onPickGallery : null,
+                  onPressed: imageUris.length < 5 && processingIndex == -1 ? onPickGallery : null,
                   icon: const Icon(Icons.photo_library_outlined, size: 18),
                   label: const Text('相册'),
                 ),
               ),
             ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _InfoBanner extends StatelessWidget {
+  const _InfoBanner({
+    required this.icon,
+    required this.text,
+    required this.color,
+    required this.iconColor,
+  });
+
+  final IconData icon;
+  final String text;
+  final Color color;
+  final Color iconColor;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(12)),
+      child: Row(
+        children: [
+          Icon(icon, size: 18, color: iconColor),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(text, style: TextStyle(fontSize: 12, color: iconColor)),
           ),
         ],
       ),
@@ -807,18 +776,9 @@ class _Step2BasicInfo extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            '基础信息',
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-          ),
+          const Text('基础信息', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
           const SizedBox(height: 4),
-          Text(
-            '以下字段均为必填',
-            style: TextStyle(
-              fontSize: 12,
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
-            ),
-          ),
+          Text('以下字段均为必填', style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant)),
           if (isAiTagging || aiTagMessage.isNotEmpty) ...[
             const SizedBox(height: 12),
             Container(
@@ -833,25 +793,15 @@ class _Step2BasicInfo extends StatelessWidget {
                     SizedBox(
                       width: 14,
                       height: 14,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: Theme.of(context).colorScheme.primary,
-                      ),
+                      child: CircularProgressIndicator(strokeWidth: 2, color: Theme.of(context).colorScheme.primary),
                     )
                   else
-                    Icon(
-                      Icons.auto_awesome,
-                      size: 14,
-                      color: Theme.of(context).colorScheme.primary,
-                    ),
+                    Icon(Icons.auto_awesome, size: 14, color: Theme.of(context).colorScheme.primary),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
                       aiTagMessage,
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Theme.of(context).colorScheme.onPrimaryContainer,
-                      ),
+                      style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onPrimaryContainer),
                     ),
                   ),
                 ],
@@ -979,37 +929,17 @@ class _Step3DetailInfo extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            '详细信息',
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-          ),
+          const Text('详细信息', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
           const SizedBox(height: 4),
-          Text(
-            '以下字段均为选填',
-            style: TextStyle(
-              fontSize: 12,
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
-            ),
-          ),
+          Text('以下字段均为选填', style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant)),
           const SizedBox(height: 20),
-          TextField(
-            controller: brandCtrl,
-            decoration: const InputDecoration(
-              labelText: '品牌',
-              hintText: '如：优衣库、ZARA',
-            ),
-          ),
+          TextField(controller: brandCtrl, decoration: const InputDecoration(labelText: '品牌', hintText: '如：优衣库、ZARA')),
           const SizedBox(height: 16),
           TextField(
             controller: priceCtrl,
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            inputFormatters: [
-              FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,2}')),
-            ],
-            decoration: const InputDecoration(
-              labelText: '购买价格（元）',
-              hintText: '0.00',
-            ),
+            inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,2}'))],
+            decoration: const InputDecoration(labelText: '购买价格（元）', hintText: '0.00'),
           ),
           const SizedBox(height: 16),
           _FormSection(
@@ -1021,40 +951,22 @@ class _Step3DetailInfo extends StatelessWidget {
                 return FilterChip(
                   selected: selectedPurchaseChannel == channel,
                   label: Text(channel),
-                  onSelected: (_) {
-                    onPurchaseChannelChange(
-                      selectedPurchaseChannel == channel ? '' : channel,
-                    );
-                  },
+                  onSelected: (_) => onPurchaseChannelChange(selectedPurchaseChannel == channel ? '' : channel),
                 );
               }).toList(),
             ),
           ),
           const SizedBox(height: 16),
-          TextField(
-            controller: purchaseDateCtrl,
-            decoration: const InputDecoration(
-              labelText: '购买日期',
-              hintText: 'YYYY-MM-DD',
-            ),
-          ),
+          TextField(controller: purchaseDateCtrl, decoration: const InputDecoration(labelText: '购买日期', hintText: 'YYYY-MM-DD')),
           const SizedBox(height: 16),
-          TextField(
-            controller: storageLocationCtrl,
-            decoration: const InputDecoration(
-              labelText: '存放位置',
-              hintText: '如：衣柜第二层',
-            ),
-          ),
+          TextField(controller: storageLocationCtrl, decoration: const InputDecoration(labelText: '存放位置', hintText: '如：衣柜第二层')),
           const SizedBox(height: 16),
           _FormSection(
             title: '衣物状态',
             child: Wrap(
               spacing: 8,
               runSpacing: 8,
-              children: ClothingStatus.all
-                  .where((s) => s != ClothingStatus.disposed)
-                  .map((status) {
+              children: ClothingStatus.all.where((s) => s != ClothingStatus.disposed).map((status) {
                 return FilterChip(
                   selected: selectedStatus == status,
                   label: Text(status),
@@ -1068,11 +980,7 @@ class _Step3DetailInfo extends StatelessWidget {
             controller: notesCtrl,
             maxLines: 4,
             maxLength: 200,
-            decoration: const InputDecoration(
-              labelText: '备注',
-              hintText: '添加备注（最多200字）',
-              alignLabelWithHint: true,
-            ),
+            decoration: const InputDecoration(labelText: '备注', hintText: '添加备注（最多200字）', alignLabelWithHint: true),
           ),
           const SizedBox(height: 20),
         ],
@@ -1094,65 +1002,10 @@ class _FormSection extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          title,
-          style: const TextStyle(fontWeight: FontWeight.w600),
-        ),
+        Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
         const SizedBox(height: 10),
         child,
       ],
-    );
-  }
-}
-
-// ─── AI Loading 对话框 ────────────────────────────────────────────────────────
-
-class _AiLoadingDialog extends StatelessWidget {
-  const _AiLoadingDialog();
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-
-    return Dialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      child: Padding(
-        padding: const EdgeInsets.all(28),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            SizedBox(
-              width: 56,
-              height: 56,
-              child: CircularProgressIndicator(
-                strokeWidth: 3,
-                color: colorScheme.primary,
-              ),
-            ),
-            const SizedBox(height: 20),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(Icons.auto_awesome, size: 16, color: colorScheme.primary),
-                const SizedBox(width: 6),
-                const Text(
-                  'AI 正在处理图片',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Text(
-              '自动去除背景，生成干净商品图\n请稍候...',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 13,
-                color: colorScheme.onSurfaceVariant,
-              ),
-            ),
-          ],
-        ),
-      ),
     );
   }
 }
@@ -1187,28 +1040,15 @@ class _BottomButtons extends StatelessWidget {
         child: Row(
           children: [
             if (currentStep > 1) ...[
-              Expanded(
-                child: OutlinedButton(
-                  onPressed: onBack,
-                  child: const Text('上一步'),
-                ),
-              ),
+              Expanded(child: OutlinedButton(onPressed: onBack, child: const Text('上一步'))),
               const SizedBox(width: 12),
             ],
             Expanded(
               child: FilledButton(
                 onPressed: (canProceed && !isSaving) ? onNext : null,
                 child: isSaving
-                    ? const SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : Text(
-                        currentStep == 3
-                            ? (isEdit ? '保存修改' : '完成添加')
-                            : '下一步',
-                      ),
+                    ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                    : Text(currentStep == 3 ? (isEdit ? '保存修改' : '完成添加') : '下一步'),
               ),
             ),
           ],
