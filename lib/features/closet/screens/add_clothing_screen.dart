@@ -42,6 +42,7 @@ class _AddClothingScreenState extends State<AddClothingScreen> {
   // AI 状态
   bool _isAiTagging = false;
   bool _isAiProcessing = false;
+  bool _isLoadingDialogOpen = false;
   String _aiTagMessage = '';
   String _originalImageUri = '';
   bool _imageProcessed = false;
@@ -92,6 +93,24 @@ class _AddClothingScreenState extends State<AddClothingScreen> {
     });
   }
 
+  void _showLoadingDialog() {
+    if (_isLoadingDialogOpen) return;
+    _isLoadingDialogOpen = true;
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const _AiLoadingDialog(),
+    );
+  }
+
+  void _closeLoadingDialog() {
+    if (!_isLoadingDialogOpen) return;
+    _isLoadingDialogOpen = false;
+    if (mounted) {
+      Navigator.of(context, rootNavigator: true).pop();
+    }
+  }
+
   Future<void> _pickFromGallery() async {
     if (_imageUris.length >= 5) return;
     final files = await _picker.pickMultiImage(limit: 5 - _imageUris.length);
@@ -99,13 +118,7 @@ class _AddClothingScreenState extends State<AddClothingScreen> {
 
     // 立即弹出 Loading，让用户知道正在处理
     setState(() => _isAiProcessing = true);
-    final nav = Navigator.of(context, rootNavigator: true);
-    // ignore: use_build_context_synchronously
-    showDialog<void>(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => const _AiLoadingDialog(),
-    );
+    _showLoadingDialog();
 
     // 后台压缩图片
     final persisted = await ImageStorageService.copyAndCompressAll(
@@ -121,10 +134,8 @@ class _AddClothingScreenState extends State<AddClothingScreen> {
       await _triggerAiProcessing(persisted.first, loadingAlreadyShown: true);
     } else {
       // 没有图片时关闭 Loading
-      if (mounted) {
-        nav.pop();
-        setState(() => _isAiProcessing = false);
-      }
+      _closeLoadingDialog();
+      setState(() => _isAiProcessing = false);
     }
   }
 
@@ -135,40 +146,26 @@ class _AddClothingScreenState extends State<AddClothingScreen> {
 
     // 立即弹出 Loading
     setState(() => _isAiProcessing = true);
-    final nav = Navigator.of(context, rootNavigator: true);
-    // ignore: use_build_context_synchronously
-    showDialog<void>(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => const _AiLoadingDialog(),
-    );
+    _showLoadingDialog();
 
     final persisted = await ImageStorageService.copyAndCompress(file.path);
     if (!mounted) return;
     setState(() {
       _imageUris = [..._imageUris, persisted].take(5).toList();
     });
-    await _triggerAiProcessing(persisted, loadingAlreadyShown: true, nav: nav);
+    await _triggerAiProcessing(persisted, loadingAlreadyShown: true);
   }
 
   Future<void> _triggerAiProcessing(
     String imagePath, {
     bool loadingAlreadyShown = false,
-    NavigatorState? nav,
   }) async {
-    NavigatorState? navigator = nav;
     if (!loadingAlreadyShown) {
       setState(() {
         _isAiProcessing = true;
         _originalImageUri = imagePath;
       });
-      navigator = Navigator.of(context, rootNavigator: true);
-      // ignore: use_build_context_synchronously
-      showDialog<void>(
-        context: context,
-        barrierDismissible: false,
-        builder: (context) => const _AiLoadingDialog(),
-      );
+      _showLoadingDialog();
     } else {
       setState(() => _originalImageUri = imagePath);
     }
@@ -178,7 +175,7 @@ class _AddClothingScreenState extends State<AddClothingScreen> {
     if (!mounted) return;
 
     // 关闭 Loading 对话框
-    navigator?.pop();
+    _closeLoadingDialog();
     setState(() => _isAiProcessing = false);
 
     if (removeBgResult is RemoveBgSuccess) {
