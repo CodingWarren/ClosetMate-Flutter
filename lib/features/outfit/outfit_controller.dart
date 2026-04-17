@@ -191,16 +191,47 @@ class OutfitController extends StateNotifier<OutfitState> {
     await _loadOutfits();
   }
 
-  Future<void> wearOutfit(OutfitModel outfit) async {
-    final now = DateTime.now().millisecondsSinceEpoch;
-    await _outfitRepo.updateOutfit(
-      outfit.copyWith(
-        wearCount: outfit.wearCount + 1,
-        lastWornAt: now,
-        updatedAt: now,
-      ),
-    );
-    await _loadOutfits();
+  /// 记录穿着：搭配穿着次数 +1，同时给搭配内所有单品穿着次数 +1
+  Future<bool> wearOutfit(OutfitModel outfit) async {
+    try {
+      final now = DateTime.now().millisecondsSinceEpoch;
+      // 1. 更新搭配本身
+      await _outfitRepo.updateOutfit(
+        outfit.copyWith(
+          wearCount: outfit.wearCount + 1,
+          lastWornAt: now,
+          updatedAt: now,
+        ),
+      );
+
+      // 2. 同步更新搭配内所有单品的穿着次数
+      final clothingIds = [
+        outfit.topId,
+        outfit.bottomId,
+        outfit.outerId,
+        outfit.shoesId,
+        outfit.bagId,
+        ...outfit.accessoryIds.split(',').where((id) => id.isNotEmpty),
+      ].where((id) => id.isNotEmpty).toList();
+
+      for (final id in clothingIds) {
+        final clothing = await _clothingRepo.getClothingById(id);
+        if (clothing != null) {
+          await _clothingRepo.updateClothing(
+            clothing.copyWith(
+              wearCount: clothing.wearCount + 1,
+              lastWornAt: now,
+              updatedAt: now,
+            ),
+          );
+        }
+      }
+
+      await _loadOutfits();
+      return true;
+    } catch (e) {
+      return false;
+    }
   }
 
   Future<void> deleteOutfit(String id) async {

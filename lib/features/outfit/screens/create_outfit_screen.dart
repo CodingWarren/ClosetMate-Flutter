@@ -76,9 +76,10 @@ class _CreateOutfitScreenState extends State<CreateOutfitScreen> {
 
     setState(() => _isSaving = true);
 
-    final now = DateTime.now().millisecondsSinceEpoch;
+    final now = DateTime.now();
+    final nowMs = now.millisecondsSinceEpoch;
     final name = _nameCtrl.text.trim().isEmpty
-        ? '我的搭配 ${DateTime.now().month}/${DateTime.now().day}'
+        ? '我的搭配 ${now.month}月${now.day}日添加'
         : _nameCtrl.text.trim();
 
     final outfit = OutfitModel(
@@ -96,8 +97,8 @@ class _CreateOutfitScreenState extends State<CreateOutfitScreen> {
       lastWornAt: 0,
       notes: _notesCtrl.text.trim(),
       isAiGenerated: false,
-      createdAt: now,
-      updatedAt: now,
+      createdAt: nowMs,
+      updatedAt: nowMs,
     );
 
     await _outfitRepo.insertOutfit(outfit);

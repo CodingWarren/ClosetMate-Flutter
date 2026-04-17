@@ -101,9 +101,8 @@ class OutfitScreen extends ConsumerWidget {
                           onFeedback: controller.submitFeedback,
                           onNavigateToCloset: () => context.go('/'),
                           onShowSnackBar: (msg) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text(msg)),
-                            );
+                            ScaffoldMessenger.of(context)
+                                .showSnackBar(SnackBar(content: Text(msg)));
                           },
                         ),
                         const SizedBox(height: 12),
@@ -123,7 +122,20 @@ class OutfitScreen extends ConsumerWidget {
                                 allClothing: state.allClothing,
                                 onFavoriteToggle: () =>
                                     controller.toggleFavorite(outfit),
-                                onWear: () => controller.wearOutfit(outfit),
+                                onWear: () async {
+                                  final success =
+                                      await controller.wearOutfit(outfit);
+                                  if (!context.mounted) return;
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text(
+                                        success
+                                            ? '✅ 已记录穿着，搭配和单品穿着次数 +1'
+                                            : '❌ 记录失败，请重试',
+                                      ),
+                                    ),
+                                  );
+                                },
                               ),
                             ),
                           ),
