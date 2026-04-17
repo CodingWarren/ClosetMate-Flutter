@@ -10,7 +10,7 @@ import 'package:http/http.dart' as http;
 /// 使用百度 AI 开放平台的图像识别能力，自动识别衣物品类、颜色、风格。
 /// 文档：https://ai.baidu.com/ai-doc/IMAGERECOGNITION/Fk3bcxdte
 class BaiduAiService {
-  static const Duration _timeout = Duration(seconds: 20);
+  static const Duration _timeout = Duration(seconds: 8);
 
   // ─── 公开接口 ─────────────────────────────────────────────────────────────
 

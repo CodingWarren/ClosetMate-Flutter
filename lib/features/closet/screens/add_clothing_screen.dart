@@ -4,6 +4,7 @@ import 'package:closetmate/data/models/clothing_model.dart';
 import 'package:closetmate/data/repositories/clothing_repository.dart';
 import 'package:closetmate/data/services/ai/baidu_ai_service.dart';
 import 'package:closetmate/data/services/ai/remove_bg_service.dart';
+import 'package:closetmate/data/services/api_config_service.dart';
 import 'package:closetmate/data/services/image_storage_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -120,37 +121,42 @@ class _AddClothingScreenState extends State<AddClothingScreen> {
   }
 
   Future<void> _triggerAiProcessing(String imagePath) async {
-    // 1. Remove.bg 抠图
+    // API Key 未配置时直接跳过，不发起网络请求
+    final apiKey = await ApiConfigService.removeBgApiKey;
+    if (apiKey.isEmpty) return;
+
+    // 标记处理中（UI 立即响应）
     setState(() {
       _isAiProcessing = true;
       _originalImageUri = imagePath;
     });
 
-    final removeBgResult = await RemoveBgService.removeBackground(imagePath);
+    // 后台异步处理，不阻塞 UI
+    RemoveBgService.removeBackground(imagePath).then((removeBgResult) async {
+      if (!mounted) return;
+      setState(() => _isAiProcessing = false);
 
-    if (!mounted) return;
-
-    if (removeBgResult is RemoveBgSuccess) {
-      // 弹出对比弹窗让用户选择
-      final useProcessed = await _showAiResultDialog(
-        originalPath: imagePath,
-        processedPath: removeBgResult.processedPath,
-      );
-      if (useProcessed == true && mounted) {
-        setState(() {
-          _imageUris = _imageUris.map((uri) {
-            return uri == imagePath ? removeBgResult.processedPath : uri;
-          }).toList();
-          _imageProcessed = true;
-        });
+      if (removeBgResult is RemoveBgSuccess) {
+        // 弹出对比弹窗让用户选择
+        final useProcessed = await _showAiResultDialog(
+          originalPath: imagePath,
+          processedPath: removeBgResult.processedPath,
+        );
+        if (useProcessed == true && mounted) {
+          setState(() {
+            _imageUris = _imageUris.map((uri) {
+              return uri == imagePath ? removeBgResult.processedPath : uri;
+            }).toList();
+            _imageProcessed = true;
+          });
+        }
+      } else {
+        // 失败时静默处理，不打扰用户
+        if (mounted) setState(() => _isAiProcessing = false);
       }
-    }
-
-    if (!mounted) return;
-    setState(() => _isAiProcessing = false);
-
-    // 2. 百度 AI 打标（进入步骤2时触发，这里先标记待处理）
-    // 实际打标在 _onEnterStep2 中执行
+    }).catchError((e) {
+      if (mounted) setState(() => _isAiProcessing = false);
+    });
   }
 
   Future<bool?> _showAiResultDialog({

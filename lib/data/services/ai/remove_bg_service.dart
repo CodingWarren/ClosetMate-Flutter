@@ -11,7 +11,7 @@ import 'package:path_provider/path_provider.dart';
 /// 文档：https://www.remove.bg/api
 class RemoveBgService {
   static const String _apiUrl = 'https://api.remove.bg/v1.0/removebg';
-  static const Duration _timeout = Duration(seconds: 30);
+  static const Duration _timeout = Duration(seconds: 8);
 
   // ─── 公开接口 ─────────────────────────────────────────────────────────────
 
