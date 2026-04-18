@@ -1,0 +1,596 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ClosetMate — AI 驱动的个人智能穿搭助手</title>
+  <meta name="description" content="ClosetMate 是一款 AI 驱动的跨平台衣橱管理应用，支持 AI 自动抠图、智能标签识别、天气联动穿搭推荐，让你的衣橱真正为你服务。" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: { sans: ['Inter', 'sans-serif'] },
+          colors: {
+            brand: {
+              50:  '#f5f3ff',
+              100: '#ede9fe',
+              200: '#ddd6fe',
+              300: '#c4b5fd',
+              400: '#a78bfa',
+              500: '#8b5cf6',
+              600: '#7c3aed',
+              700: '#6d28d9',
+              800: '#5b21b6',
+              900: '#4c1d95',
+            },
+          },
+          animation: {
+            'fade-up':   'fadeUp 0.6s ease-out forwards',
+            'fade-in':   'fadeIn 0.5s ease-out forwards',
+            'float':     'float 6s ease-in-out infinite',
+            'pulse-slow':'pulse 4s cubic-bezier(0.4,0,0.6,1) infinite',
+          },
+          keyframes: {
+            fadeUp:  { '0%': { opacity: '0', transform: 'translateY(24px)' }, '100%': { opacity: '1', transform: 'translateY(0)' } },
+            fadeIn:  { '0%': { opacity: '0' }, '100%': { opacity: '1' } },
+            float:   { '0%,100%': { transform: 'translateY(0)' }, '50%': { transform: 'translateY(-12px)' } },
+          },
+        },
+      },
+    };
+  </script>
+  <style>
+    html { scroll-behavior: smooth; }
+    .gradient-text {
+      background: linear-gradient(135deg, #7c3aed 0%, #a78bfa 50%, #c084fc 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .hero-bg {
+      background: radial-gradient(ellipse 80% 60% at 50% -10%, rgba(139,92,246,0.18) 0%, transparent 70%),
+                  radial-gradient(ellipse 60% 40% at 80% 80%, rgba(192,132,252,0.10) 0%, transparent 60%),
+                  #fafafa;
+    }
+    .card-glass {
+      background: rgba(255,255,255,0.85);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(139,92,246,0.12);
+    }
+    .feature-icon-bg {
+      background: linear-gradient(135deg, #ede9fe 0%, #f5f3ff 100%);
+    }
+    .btn-primary {
+      background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);
+      transition: all 0.2s ease;
+      box-shadow: 0 4px 20px rgba(124,58,237,0.35);
+    }
+    .btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 28px rgba(124,58,237,0.45);
+    }
+    .btn-secondary {
+      background: rgba(255,255,255,0.9);
+      border: 1.5px solid rgba(139,92,246,0.3);
+      transition: all 0.2s ease;
+    }
+    .btn-secondary:hover {
+      background: rgba(245,243,255,1);
+      border-color: rgba(124,58,237,0.5);
+      transform: translateY(-2px);
+    }
+    .step-line::after {
+      content: '';
+      position: absolute;
+      top: 50%;
+      left: 100%;
+      width: 100%;
+      height: 2px;
+      background: linear-gradient(90deg, #c4b5fd, transparent);
+      transform: translateY(-50%);
+    }
+    @media (max-width: 768px) { .step-line::after { display: none; } }
+    .reveal { opacity: 0; transform: translateY(20px); transition: opacity 0.6s ease, transform 0.6s ease; }
+    .reveal.visible { opacity: 1; transform: translateY(0); }
+    .phone-mockup {
+      background: linear-gradient(145deg, #1a1a2e 0%, #16213e 100%);
+      border-radius: 40px;
+      box-shadow: 0 40px 80px rgba(0,0,0,0.25), 0 0 0 1px rgba(255,255,255,0.08) inset;
+    }
+    .screen-content {
+      background: linear-gradient(160deg, #f8f7ff 0%, #f0ebff 100%);
+      border-radius: 32px;
+    }
+  </style>
+</head>
+<body class="font-sans antialiased text-gray-900 bg-white">
+
+  <!-- ─── NAV ─────────────────────────────────────────────────────────── -->
+  <nav class="fixed top-0 left-0 right-0 z-50 bg-white/80 backdrop-blur-md border-b border-gray-100/80">
+    <div class="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
+      <div class="flex items-center gap-2.5">
+        <div class="w-8 h-8 rounded-xl bg-gradient-to-br from-brand-500 to-brand-700 flex items-center justify-center shadow-sm">
+          <svg class="w-4.5 h-4.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"/>
+          </svg>
+        </div>
+        <span class="font-bold text-lg tracking-tight text-gray-900">ClosetMate</span>
+      </div>
+      <div class="hidden md:flex items-center gap-8 text-sm font-medium text-gray-600">
+        <a href="#features" class="hover:text-brand-600 transition-colors cursor-pointer">功能特性</a>
+        <a href="#how-it-works" class="hover:text-brand-600 transition-colors cursor-pointer">工作原理</a>
+        <a href="#tech" class="hover:text-brand-600 transition-colors cursor-pointer">技术栈</a>
+      </div>
+      <a href="https://github.com/CodingWarren/ClosetMate-Flutter" target="_blank" rel="noopener"
+         class="flex items-center gap-2 text-sm font-semibold text-brand-700 hover:text-brand-800 transition-colors cursor-pointer">
+        <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+          <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/>
+        </svg>
+        GitHub
+      </a>
+    </div>
+  </nav>
+
+  <!-- ─── HERO ─────────────────────────────────────────────────────────── -->
+  <section class="hero-bg pt-32 pb-20 px-6 overflow-hidden">
+    <div class="max-w-6xl mx-auto">
+      <div class="flex flex-col lg:flex-row items-center gap-16">
+
+        <!-- Left: Copy -->
+        <div class="flex-1 text-center lg:text-left">
+          <div class="inline-flex items-center gap-2 bg-brand-50 border border-brand-200 rounded-full px-4 py-1.5 text-sm font-medium text-brand-700 mb-6">
+            <span class="w-2 h-2 rounded-full bg-brand-500 animate-pulse-slow"></span>
+            Flutter 跨平台 · iOS & Android
+          </div>
+          <h1 class="text-5xl lg:text-6xl font-black leading-tight tracking-tight text-gray-900 mb-6">
+            让 AI 帮你<br/>
+            <span class="gradient-text">管理衣橱</span><br/>
+            每天穿对衣服
+          </h1>
+          <p class="text-xl text-gray-500 leading-relaxed mb-10 max-w-lg mx-auto lg:mx-0">
+            ClosetMate 是一款 AI 驱动的个人穿搭助手。一键抠图、自动打标、结合天气的每日推荐——告别"今天穿什么"的烦恼。
+          </p>
+          <div class="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start">
+            <a href="https://github.com/CodingWarren/ClosetMate-Flutter/releases" target="_blank" rel="noopener"
+               class="btn-primary inline-flex items-center justify-center gap-2.5 px-7 py-3.5 rounded-2xl text-white font-semibold text-base cursor-pointer">
+              <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+              </svg>
+              下载体验版 APK
+            </a>
+            <a href="https://github.com/CodingWarren/ClosetMate-Flutter" target="_blank" rel="noopener"
+               class="btn-secondary inline-flex items-center justify-center gap-2.5 px-7 py-3.5 rounded-2xl text-gray-700 font-semibold text-base cursor-pointer">
+              <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/>
+              </svg>
+              查看源码
+            </a>
+          </div>
+          <!-- Stats -->
+          <div class="flex gap-8 mt-12 justify-center lg:justify-start">
+            <div>
+              <div class="text-3xl font-black text-gray-900">100%</div>
+              <div class="text-sm text-gray-500 mt-0.5">本地隐私存储</div>
+            </div>
+            <div class="w-px bg-gray-200"></div>
+            <div>
+              <div class="text-3xl font-black text-gray-900">iOS & Android</div>
+              <div class="text-sm text-gray-500 mt-0.5">跨平台支持</div>
+            </div>
+            <div class="w-px bg-gray-200"></div>
+            <div>
+              <div class="text-3xl font-black text-gray-900">AI 驱动</div>
+              <div class="text-sm text-gray-500 mt-0.5">智能穿搭推荐</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right: Phone Mockup -->
+        <div class="flex-shrink-0 relative animate-float">
+          <div class="phone-mockup w-64 h-[520px] p-3 relative">
+            <!-- Notch -->
+            <div class="absolute top-3 left-1/2 -translate-x-1/2 w-24 h-6 bg-black rounded-full z-10"></div>
+            <div class="screen-content w-full h-full overflow-hidden relative">
+              <!-- App UI Mockup -->
+              <div class="p-4 pt-10">
+                <div class="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">今日穿搭推荐</div>
+                <!-- Weather bar -->
+                <div class="flex items-center gap-2 bg-brand-50 rounded-xl px-3 py-2 mb-4">
+                  <span class="text-lg">🌤️</span>
+                  <div>
+                    <div class="text-xs font-semibold text-brand-700">22°C · 晴</div>
+                    <div class="text-xs text-gray-400">适合轻薄穿搭</div>
+                  </div>
+                </div>
+                <!-- Outfit card -->
+                <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-3 mb-3">
+                  <div class="flex items-center gap-1.5 mb-2">
+                    <span class="text-xs font-bold text-brand-600">✨ AI 推荐</span>
+                    <span class="text-xs text-gray-400">方案 1</span>
+                  </div>
+                  <div class="grid grid-cols-2 gap-1.5">
+                    <div class="bg-purple-50 rounded-xl h-16 flex items-center justify-center text-2xl">👕</div>
+                    <div class="bg-blue-50 rounded-xl h-16 flex items-center justify-center text-2xl">👖</div>
+                    <div class="bg-gray-50 rounded-xl h-16 flex items-center justify-center text-2xl">🧥</div>
+                    <div class="bg-amber-50 rounded-xl h-16 flex items-center justify-center text-2xl">👟</div>
+                  </div>
+                  <div class="mt-2 text-xs text-gray-500">22°C 温暖天气，单衣舒适</div>
+                </div>
+                <!-- Closet items -->
+                <div class="text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">我的衣橱</div>
+                <div class="flex gap-2">
+                  <div class="flex-1 bg-white rounded-xl border border-gray-100 p-2 text-center">
+                    <div class="text-xl mb-1">👗</div>
+                    <div class="text-xs text-gray-500">连衣裙</div>
+                  </div>
+                  <div class="flex-1 bg-white rounded-xl border border-gray-100 p-2 text-center">
+                    <div class="text-xl mb-1">👜</div>
+                    <div class="text-xs text-gray-500">包包</div>
+                  </div>
+                  <div class="flex-1 bg-brand-50 rounded-xl border border-brand-100 p-2 text-center">
+                    <div class="text-xl mb-1">➕</div>
+                    <div class="text-xs text-brand-600">添加</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <!-- Floating badges -->
+          <div class="absolute -right-8 top-16 card-glass rounded-2xl px-3 py-2 shadow-lg">
+            <div class="flex items-center gap-2">
+              <div class="w-8 h-8 rounded-xl bg-green-100 flex items-center justify-center text-sm">✂️</div>
+              <div>
+                <div class="text-xs font-bold text-gray-800">AI 抠图完成</div>
+                <div class="text-xs text-gray-400">背景已去除</div>
+              </div>
+            </div>
+          </div>
+          <div class="absolute -left-10 bottom-24 card-glass rounded-2xl px-3 py-2 shadow-lg">
+            <div class="flex items-center gap-2">
+              <div class="w-8 h-8 rounded-xl bg-brand-100 flex items-center justify-center text-sm">🏷️</div>
+              <div>
+                <div class="text-xs font-bold text-gray-800">自动识别</div>
+                <div class="text-xs text-gray-400">T恤 · 白色 · 休闲</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ─── FEATURES ─────────────────────────────────────────────────────── -->
+  <section id="features" class="py-24 px-6 bg-white">
+    <div class="max-w-6xl mx-auto">
+      <div class="text-center mb-16 reveal">
+        <div class="inline-flex items-center gap-2 bg-brand-50 border border-brand-200 rounded-full px-4 py-1.5 text-sm font-medium text-brand-700 mb-4">
+          核心功能
+        </div>
+        <h2 class="text-4xl lg:text-5xl font-black text-gray-900 mb-4">
+          让 AI 成为你的<span class="gradient-text">私人造型师</span>
+        </h2>
+        <p class="text-xl text-gray-500 max-w-2xl mx-auto">
+          从拍照录入到每日穿搭推荐，ClosetMate 用 AI 技术让衣橱管理变得前所未有的简单。
+        </p>
+      </div>
+
+      <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+
+        <!-- Feature 1 -->
+        <div class="reveal card-glass rounded-3xl p-7 hover:shadow-xl hover:-translate-y-1 transition-all duration-300 cursor-default">
+          <div class="feature-icon-bg w-14 h-14 rounded-2xl flex items-center justify-center mb-5">
+            <svg class="w-7 h-7 text-brand-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+            </svg>
+          </div>
+          <h3 class="text-xl font-bold text-gray-900 mb-2">AI 智能抠图</h3>
+          <p class="text-gray-500 leading-relaxed">
+            拍照后自动去除杂乱背景，生成干净的商品图效果。支持原图与抠图对比选择，让你的衣橱图库整洁专业。
+          </p>
+          <div class="mt-4 flex items-center gap-2 text-sm font-medium text-brand-600">
+            <span>Remove.bg 驱动</span>
+            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/>
+            </svg>
+          </div>
+        </div>
+
+        <!-- Feature 2 -->
+        <div class="reveal card-glass rounded-3xl p-7 hover:shadow-xl hover:-translate-y-1 transition-all duration-300 cursor-default">
+          <div class="feature-icon-bg w-14 h-14 rounded-2xl flex items-center justify-center mb-5">
+            <svg class="w-7 h-7 text-brand-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"/>
+            </svg>
+          </div>
+          <h3 class="text-xl font-bold text-gray-900 mb-2">自动标签识别</h3>
+          <p class="text-gray-500 leading-relaxed">
+            上传图片后，AI 自动识别品类、颜色、季节与风格，并智能预填所有标签。录入一件衣物只需 30 秒。
+          </p>
+          <div class="mt-4 flex items-center gap-2 text-sm font-medium text-brand-600">
+            <span>百度 AI 视觉识别</span>
+            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/>
+            </svg>
+          </div>
+        </div>
+
+        <!-- Feature 3 -->
+        <div class="reveal card-glass rounded-3xl p-7 hover:shadow-xl hover:-translate-y-1 transition-all duration-300 cursor-default">
+          <div class="feature-icon-bg w-14 h-14 rounded-2xl flex items-center justify-center mb-5">
+            <svg class="w-7 h-7 text-brand-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z"/>
+            </svg>
+          </div>
+          <h3 class="text-xl font-bold text-gray-900 mb-2">天气联动推荐</h3>
+          <p class="text-gray-500 leading-relaxed">
+            接入和风天气实时数据，根据当日温度自动筛选合适的衣物，优先推荐闲置超 30 天的单品，每天生成 3 套差异化方案。
+          </p>
+          <div class="mt-4 flex items-center gap-2 text-sm font-medium text-brand-600">
+            <span>和风天气 API</span>
+            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/>
+            </svg>
+          </div>
+        </div>
+
+        <!-- Feature 4 -->
+        <div class="reveal card-glass rounded-3xl p-7 hover:shadow-xl hover:-translate-y-1 transition-all duration-300 cursor-default">
+          <div class="feature-icon-bg w-14 h-14 rounded-2xl flex items-center justify-center mb-5">
+            <svg class="w-7 h-7 text-brand-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+            </svg>
+          </div>
+          <h3 class="text-xl font-bold text-gray-900 mb-2">隐私优先存储</h3>
+          <p class="text-gray-500 leading-relaxed">
+            所有数据默认存储在本地设备，不上传任何个人信息。支持 PIN 码与生物识别（Face ID / 指纹）双重应用锁保护。
+          </p>
+          <div class="mt-4 flex items-center gap-2 text-sm font-medium text-brand-600">
+            <span>本地 SQLite 数据库</span>
+            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/>
+            </svg>
+          </div>
+        </div>
+
+        <!-- Feature 5 -->
+        <div class="reveal card-glass rounded-3xl p-7 hover:shadow-xl hover:-translate-y-1 transition-all duration-300 cursor-default">
+          <div class="feature-icon-bg w-14 h-14 rounded-2xl flex items-center justify-center mb-5">
+            <svg class="w-7 h-7 text-brand-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/>
+            </svg>
+          </div>
+          <h3 class="text-xl font-bold text-gray-900 mb-2">跨平台无缝迁移</h3>
+          <p class="text-gray-500 leading-relaxed">
+            备份文件将图片以 Base64 内嵌到 JSON，一个文件包含全部数据。从 Android 备份，在 iOS 上完整恢复，图片一张不丢。
+          </p>
+          <div class="mt-4 flex items-center gap-2 text-sm font-medium text-brand-600">
+            <span>iOS & Android 双端</span>
+            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/>
+            </svg>
+          </div>
+        </div>
+
+        <!-- Feature 6 -->
+        <div class="reveal card-glass rounded-3xl p-7 hover:shadow-xl hover:-translate-y-1 transition-all duration-300 cursor-default">
+          <div class="feature-icon-bg w-14 h-14 rounded-2xl flex items-center justify-center mb-5">
+            <svg class="w-7 h-7 text-brand-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+            </svg>
+          </div>
+          <h3 class="text-xl font-bold text-gray-900 mb-2">穿着数据统计</h3>
+          <p class="text-gray-500 leading-relaxed">
+            记录每件衣物的穿着次数与最后穿着时间，自动计算单次穿着成本，让你清楚哪些衣服真正在被使用。
+          </p>
+          <div class="mt-4 flex items-center gap-2 text-sm font-medium text-brand-600">
+            <span>可视化数据分析</span>
+            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/>
+            </svg>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ─── HOW IT WORKS ──────────────────────────────────────────────────── -->
+  <section id="how-it-works" class="py-24 px-6 bg-gray-50">
+    <div class="max-w-6xl mx-auto">
+      <div class="text-center mb-16 reveal">
+        <div class="inline-flex items-center gap-2 bg-brand-50 border border-brand-200 rounded-full px-4 py-1.5 text-sm font-medium text-brand-700 mb-4">
+          工作原理
+        </div>
+        <h2 class="text-4xl lg:text-5xl font-black text-gray-900 mb-4">
+          三步开始你的<span class="gradient-text">智能衣橱</span>
+        </h2>
+        <p class="text-xl text-gray-500 max-w-2xl mx-auto">
+          从拍照到每日穿搭推荐，整个流程只需几分钟。
+        </p>
+      </div>
+
+      <div class="grid md:grid-cols-3 gap-8">
+        <div class="reveal text-center relative">
+          <div class="relative inline-block step-line">
+            <div class="w-20 h-20 rounded-3xl bg-gradient-to-br from-brand-500 to-brand-700 flex items-center justify-center mx-auto mb-6 shadow-lg shadow-brand-200">
+              <svg class="w-9 h-9 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/>
+                <path stroke-linecap="round" stroke-linejoin="round" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"/>
+              </svg>
+            </div>
+          </div>
+          <div class="text-sm font-bold text-brand-500 uppercase tracking-widest mb-2">Step 01</div>
+          <h3 class="text-2xl font-bold text-gray-900 mb-3">拍照上传</h3>
+          <p class="text-gray-500 leading-relaxed">
+            拍摄或从相册选择衣物照片。AI 自动去除背景，生成干净的商品图，并识别品类、颜色、季节等标签。
+          </p>
+        </div>
+
+        <div class="reveal text-center relative" style="transition-delay: 0.15s">
+          <div class="relative inline-block step-line">
+            <div class="w-20 h-20 rounded-3xl bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center mx-auto mb-6 shadow-lg shadow-purple-200">
+              <svg class="w-9 h-9 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+              </svg>
+            </div>
+          </div>
+          <div class="text-sm font-bold text-purple-500 uppercase tracking-widest mb-2">Step 02</div>
+          <h3 class="text-2xl font-bold text-gray-900 mb-3">建立衣橱档案</h3>
+          <p class="text-gray-500 leading-relaxed">
+            确认或微调 AI 预填的标签，补充品牌、价格、购买渠道等信息。你的每件衣物都有了完整的数字档案。
+          </p>
+        </div>
+
+        <div class="reveal text-center" style="transition-delay: 0.3s">
+          <div class="w-20 h-20 rounded-3xl bg-gradient-to-br from-emerald-500 to-teal-500 flex items-center justify-center mx-auto mb-6 shadow-lg shadow-emerald-200">
+            <svg class="w-9 h-9 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z"/>
+            </svg>
+          </div>
+          <div class="text-sm font-bold text-emerald-500 uppercase tracking-widest mb-2">Step 03</div>
+          <h3 class="text-2xl font-bold text-gray-900 mb-3">享受每日推荐</h3>
+          <p class="text-gray-500 leading-relaxed">
+            每天打开 App，AI 结合当日天气和你的衣橱，生成 3 套个性化穿搭方案。一键保存喜欢的搭配，记录今日穿着。
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─── TECH STACK ────────────────────────────────────────────────────── -->
+  <section id="tech" class="py-24 px-6 bg-white">
+    <div class="max-w-6xl mx-auto">
+      <div class="text-center mb-16 reveal">
+        <div class="inline-flex items-center gap-2 bg-brand-50 border border-brand-200 rounded-full px-4 py-1.5 text-sm font-medium text-brand-700 mb-4">
+          技术栈
+        </div>
+        <h2 class="text-4xl lg:text-5xl font-black text-gray-900 mb-4">
+          现代化的<span class="gradient-text">技术选型</span>
+        </h2>
+        <p class="text-xl text-gray-500 max-w-2xl mx-auto">
+          基于 Flutter 构建，一套代码同时运行在 iOS 和 Android 上，性能与体验不妥协。
+        </p>
+      </div>
+
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-4 reveal">
+        <div class="card-glass rounded-2xl p-5 text-center hover:shadow-md transition-shadow cursor-default">
+          <div class="text-3xl mb-3">🐦</div>
+          <div class="font-bold text-gray-900">Flutter</div>
+          <div class="text-sm text-gray-500 mt-1">跨平台 UI 框架</div>
+        </div>
+        <div class="card-glass rounded-2xl p-5 text-center hover:shadow-md transition-shadow cursor-default">
+          <div class="text-3xl mb-3">🎯</div>
+          <div class="font-bold text-gray-900">Dart</div>
+          <div class="text-sm text-gray-500 mt-1">开发语言</div>
+        </div>
+        <div class="card-glass rounded-2xl p-5 text-center hover:shadow-md transition-shadow cursor-default">
+          <div class="text-3xl mb-3">🗄️</div>
+          <div class="font-bold text-gray-900">SQLite</div>
+          <div class="text-sm text-gray-500 mt-1">本地数据库</div>
+        </div>
+        <div class="card-glass rounded-2xl p-5 text-center hover:shadow-md transition-shadow cursor-default">
+          <div class="text-3xl mb-3">⚡</div>
+          <div class="font-bold text-gray-900">Riverpod</div>
+          <div class="text-sm text-gray-500 mt-1">状态管理</div>
+        </div>
+        <div class="card-glass rounded-2xl p-5 text-center hover:shadow-md transition-shadow cursor-default">
+          <div class="text-3xl mb-3">✂️</div>
+          <div class="font-bold text-gray-900">Remove.bg</div>
+          <div class="text-sm text-gray-500 mt-1">AI 抠图服务</div>
+        </div>
+        <div class="card-glass rounded-2xl p-5 text-center hover:shadow-md transition-shadow cursor-default">
+          <div class="text-3xl mb-3">🏷️</div>
+          <div class="font-bold text-gray-900">百度 AI</div>
+          <div class="text-sm text-gray-500 mt-1">图像识别</div>
+        </div>
+        <div class="card-glass rounded-2xl p-5 text-center hover:shadow-md transition-shadow cursor-default">
+          <div class="text-3xl mb-3">🌤️</div>
+          <div class="font-bold text-gray-900">和风天气</div>
+          <div class="text-sm text-gray-500 mt-1">实时天气 API</div>
+        </div>
+        <div class="card-glass rounded-2xl p-5 text-center hover:shadow-md transition-shadow cursor-default">
+          <div class="text-3xl mb-3">🔒</div>
+          <div class="font-bold text-gray-900">Local Auth</div>
+          <div class="text-sm text-gray-500 mt-1">生物识别解锁</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─── CTA ───────────────────────────────────────────────────────────── -->
+  <section class="py-24 px-6">
+    <div class="max-w-4xl mx-auto">
+      <div class="reveal bg-gradient-to-br from-brand-600 to-brand-800 rounded-3xl p-12 text-center relative overflow-hidden">
+        <!-- Background decoration -->
+        <div class="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full -translate-y-1/2 translate-x-1/2"></div>
+        <div class="absolute bottom-0 left-0 w-48 h-48 bg-white/5 rounded-full translate-y-1/2 -translate-x-1/2"></div>
+        <div class="relative z-10">
+          <div class="text-5xl mb-6">👗</div>
+          <h2 class="text-4xl font-black text-white mb-4">
+            开始整理你的衣橱
+          </h2>
+          <p class="text-xl text-brand-200 mb-10 max-w-xl mx-auto">
+            免费开源，完全本地存储，无需注册账号。立即下载，让 AI 帮你找回那些被遗忘的好衣服。
+          </p>
+          <div class="flex flex-col sm:flex-row gap-4 justify-center">
+            <a href="https://github.com/CodingWarren/ClosetMate-Flutter/releases" target="_blank" rel="noopener"
+               class="inline-flex items-center justify-center gap-2.5 px-8 py-4 rounded-2xl bg-white text-brand-700 font-bold text-base hover:bg-brand-50 transition-colors cursor-pointer shadow-lg">
+              <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+              </svg>
+              下载 Android APK
+            </a>
+            <a href="https://github.com/CodingWarren/ClosetMate-Flutter" target="_blank" rel="noopener"
+               class="inline-flex items-center justify-center gap-2.5 px-8 py-4 rounded-2xl bg-white/10 text-white font-bold text-base hover:bg-white/20 transition-colors cursor-pointer border border-white/20">
+              <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/>
+              </svg>
+              查看 GitHub 源码
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─── FOOTER ────────────────────────────────────────────────────────── -->
+  <footer class="py-12 px-6 border-t border-gray-100">
+    <div class="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
+      <div class="flex items-center gap-2.5">
+        <div class="w-7 h-7 rounded-lg bg-gradient-to-br from-brand-500 to-brand-700 flex items-center justify-center">
+          <svg class="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"/>
+          </svg>
+        </div>
+        <span class="font-bold text-gray-900">ClosetMate</span>
+        <span class="text-gray-400">·</span>
+        <span class="text-sm text-gray-500">MIT License · Open Source</span>
+      </div>
+      <div class="flex items-center gap-6 text-sm text-gray-500">
+        <a href="https://github.com/CodingWarren/ClosetMate-Flutter" target="_blank" rel="noopener" class="hover:text-brand-600 transition-colors cursor-pointer">GitHub</a>
+        <a href="https://github.com/CodingWarren/ClosetMate-Flutter/issues" target="_blank" rel="noopener" class="hover:text-brand-600 transition-colors cursor-pointer">反馈问题</a>
+        <span>© 2026 ClosetMate</span>
+      </div>
+    </div>
+  </footer>
+
+  <!-- ─── SCROLL REVEAL SCRIPT ─────────────────────────────────────────── -->
+  <script>
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          entry.target.classList.add('visible');
+        }
+      });
+    }, { threshold: 0.1, rootMargin: '0px 0px -40px 0px' });
+
+    document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
+  </script>
+</body>
+</html>
