@@ -177,8 +177,10 @@ class _AddClothingScreenState extends State<AddClothingScreen> {
   Future<void> _editImage(String imagePath, int imageIndex) async {
     final editedPath = await ImageEditHelper.editImage(context, imagePath);
     if (editedPath != null && mounted) {
+      // 将编辑后的图片持久化到应用目录
+      final persistedPath = await ImageStorageService.copyAndCompress(editedPath);
       setState(() {
-        _imageUris[imageIndex] = editedPath;
+        _imageUris[imageIndex] = persistedPath;
       });
     }
   }
@@ -645,7 +647,7 @@ class _Step1ImagePicker extends StatelessWidget {
                           // 编辑图片按钮（左下角，处理中时隐藏）
                           if (!isProcessing)
                             Positioned(
-                              bottom: 4,
+                              bottom: MediaQuery.of(context).padding.bottom + 4,
                               left: 4,
                               child: GestureDetector(
                                 onTap: () => onEditImage(uri, index),
@@ -663,7 +665,7 @@ class _Step1ImagePicker extends StatelessWidget {
                           // 重新触发 AI 按钮（仅第一张图片，且没有在处理中）
                           if (!isProcessing && index == 0 && processingIndex == -1)
                             Positioned(
-                              bottom: 4,
+                              bottom: MediaQuery.of(context).padding.bottom + 4,
                               right: 4,
                               child: GestureDetector(
                                 onTap: () => onRetriggerAi(uri, index),

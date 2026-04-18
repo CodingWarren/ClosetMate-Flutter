@@ -4,6 +4,7 @@ import 'package:closetmate/core/navigation/app_router.dart';
 import 'package:closetmate/core/theme/app_theme.dart';
 import 'package:closetmate/data/services/api_config_service.dart';
 import 'package:closetmate/data/services/app_lock_service.dart';
+import 'package:closetmate/data/services/image_path_fixer.dart';
 import 'package:closetmate/features/lock/screens/lock_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -92,6 +93,9 @@ class _ClosetMateAppState extends State<ClosetMateApp> {
         _isLocked = locked;
         _lockChecked = true;
       });
+
+      // 在后台运行图片路径修复
+      _runImagePathFix();
     } catch (error, stackTrace) {
       print('Error checking lock: $error');
       print('Stack trace: $stackTrace');
@@ -100,7 +104,29 @@ class _ClosetMateAppState extends State<ClosetMateApp> {
         _isLocked = false; // 出错时默认不锁定
         _lockChecked = true;
       });
+
+      // 即使在错误情况下也尝试修复路径
+      _runImagePathFix();
     }
+  }
+
+  /// 在后台运行图片路径修复
+  void _runImagePathFix() {
+    Future(() async {
+      try {
+        print('Checking if image path fix is needed...');
+        final needsFix = await ImagePathFixer.needsFix();
+        if (needsFix) {
+          print('Running image path fix...');
+          final fixedCount = await ImagePathFixer.fixAllImagePaths();
+          print('Image path fix completed: $fixedCount items fixed');
+        } else {
+          print('Image paths are OK, no fix needed');
+        }
+      } catch (e) {
+        print('Error running image path fix: $e');
+      }
+    });
   }
 
   @override

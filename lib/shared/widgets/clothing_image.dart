@@ -42,8 +42,18 @@ class ClothingImage extends StatelessWidget {
     }
 
     final file = File(imageUrl);
-    if (!file.existsSync()) {
+    final exists = file.existsSync();
+    if (!exists) {
+      print('ClothingImage: File does not exist: $imageUrl');
       return _fallback(colorScheme);
+    }
+
+    // 调试：打印文件信息
+    try {
+      final stat = file.statSync();
+      print('ClothingImage: File exists, size: ${stat.size} bytes, path: $imageUrl');
+    } catch (e) {
+      print('ClothingImage: Error checking file: $e');
     }
 
     return Image.file(
@@ -51,7 +61,10 @@ class ClothingImage extends StatelessWidget {
       fit: fit,
       width: width,
       height: height,
-      errorBuilder: (context, error, stackTrace) => _fallback(colorScheme),
+      errorBuilder: (context, error, stackTrace) {
+        print('ClothingImage: Error loading image: $error, path: $imageUrl');
+        return _fallback(colorScheme);
+      },
     );
   }
 

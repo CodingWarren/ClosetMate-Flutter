@@ -136,6 +136,13 @@ class _ClothingCard extends ConsumerWidget {
     final imageUrl = clothing.imageUriList.isNotEmpty ? clothing.imageUriList.first : null;
     final colorScheme = Theme.of(context).colorScheme;
 
+    // 调试：打印图片信息
+    if (imageUrl != null) {
+      print('ClothingCard: id=${clothing.id}, imageUrl=$imageUrl, imageUriList=${clothing.imageUriList}');
+    } else {
+      print('ClothingCard: id=${clothing.id}, no image');
+    }
+
     return Card(
       clipBehavior: Clip.antiAlias,
       child: InkWell(

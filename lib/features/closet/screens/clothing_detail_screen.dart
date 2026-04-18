@@ -3,6 +3,7 @@ import 'package:closetmate/data/models/outfit_model.dart';
 import 'package:closetmate/data/repositories/clothing_repository.dart';
 import 'package:closetmate/data/repositories/outfit_repository.dart';
 import 'package:closetmate/data/services/image_edit_helper.dart';
+import 'package:closetmate/data/services/image_storage_service.dart';
 import 'package:closetmate/data/services/recommend/outfit_recommend_service.dart';
 import 'package:closetmate/shared/widgets/clothing_image.dart';
 import 'package:flutter/material.dart';
@@ -51,8 +52,10 @@ class _ClothingDetailScreenState extends State<ClothingDetailScreen> {
     final imagePath = item.imageUriList[index];
     final editedPath = await ImageEditHelper.editImage(context, imagePath);
     if (editedPath != null && mounted) {
+      // 将编辑后的图片持久化到应用目录
+      final persistedPath = await ImageStorageService.copyAndCompress(editedPath);
       final newUris = List<String>.from(item.imageUriList);
-      newUris[index] = editedPath;
+      newUris[index] = persistedPath;
       await _repository.updateClothing(
         item.copyWith(
           imageUris: newUris.join(','),
@@ -239,7 +242,7 @@ class _ClothingDetailScreenState extends State<ClothingDetailScreen> {
                                     ),
                                     // 编辑提示（右下角）
                                     Positioned(
-                                      bottom: 12,
+                                      bottom: MediaQuery.of(context).padding.bottom + 12,
                                       right: 12,
                                       child: GestureDetector(
                                         onTap: () => _editImage(index),
