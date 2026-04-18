@@ -17,6 +17,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _isBiometricAvailable = false;
   bool _isBackingUp = false;
   bool _isRestoring = false;
+  final _backupButtonKey = GlobalKey();
 
   @override
   void initState() {
@@ -159,6 +160,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               child: Column(
                 children: [
                   _SettingsTile(
+                    key: _backupButtonKey,
                     icon: Icons.cloud_upload_outlined,
                     title: '备份数据',
                     subtitle: _isBackingUp ? '正在备份…' : '将衣橱数据导出为 JSON 文件',
@@ -427,7 +429,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Future<void> _doBackup() async {
     setState(() => _isBackingUp = true);
-    final result = await BackupService.createAndShareBackup();
+    // 获取备份按钮的屏幕位置，iOS 分享面板需要锚点坐标
+    Rect? shareOrigin;
+    final renderBox = _backupButtonKey.currentContext?.findRenderObject() as RenderBox?;
+    if (renderBox != null) {
+      final offset = renderBox.localToGlobal(Offset.zero);
+      shareOrigin = offset & renderBox.size;
+    }
+    final result = await BackupService.createAndShareBackup(sharePositionOrigin: shareOrigin);
     if (!mounted) return;
     setState(() => _isBackingUp = false);
     if (result is BackupError) {
@@ -753,6 +762,7 @@ class _SectionTitle extends StatelessWidget {
 
 class _SettingsTile extends StatelessWidget {
   const _SettingsTile({
+    super.key,
     required this.icon,
     required this.title,
     this.subtitle,

@@ -23,7 +23,8 @@ class BackupService {
   // ─── 备份 ─────────────────────────────────────────────────────────────────
 
   /// 创建备份 JSON 文件（含图片 Base64）并调用系统分享面板。
-  static Future<BackupResult> createAndShareBackup() async {
+  /// [sharePositionOrigin] iOS 必须传入按钮的屏幕坐标，否则分享面板会崩溃。
+  static Future<BackupResult> createAndShareBackup({Rect? sharePositionOrigin}) async {
     try {
       final clothing = await _clothingRepo.getAllClothing();
       final outfits = await _outfitRepo.getAllOutfits();
@@ -71,11 +72,13 @@ class BackupService {
           p.join(cacheDir.path, 'closetmate_backup_$timestamp.json'));
       await file.writeAsString(json, encoding: utf8);
 
+      // iOS 需要提供 sharePositionOrigin（锚点），否则分享面板会崩溃
       await SharePlus.instance.share(
         ShareParams(
           files: [XFile(file.path)],
           subject: 'ClosetMate 衣橱数据备份',
           text: 'ClosetMate 衣橱数据备份文件（含图片，可跨平台恢复）',
+          sharePositionOrigin: sharePositionOrigin,
         ),
       );
 
