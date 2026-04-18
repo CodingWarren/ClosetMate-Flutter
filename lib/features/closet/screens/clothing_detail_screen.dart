@@ -50,7 +50,7 @@ class _ClothingDetailScreenState extends State<ClothingDetailScreen> {
     final item = clothing;
     if (item == null) return;
     final imagePath = item.imageUriList[index];
-    final editedPath = await ImageEditHelper.editImage(context, imagePath);
+    final editedPath = await ImageEditHelper.showEditOptions(context, imagePath);
     if (editedPath != null && mounted) {
       // 将编辑后的图片持久化到应用目录
       final persistedPath = await ImageStorageService.copyAndCompress(editedPath);

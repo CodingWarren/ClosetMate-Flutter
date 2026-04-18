@@ -175,7 +175,7 @@ class _AddClothingScreenState extends State<AddClothingScreen> {
 
   /// 编辑图片（旋转/裁剪）
   Future<void> _editImage(String imagePath, int imageIndex) async {
-    final editedPath = await ImageEditHelper.editImage(context, imagePath);
+    final editedPath = await ImageEditHelper.showEditOptions(context, imagePath);
     if (editedPath != null && mounted) {
       // 将编辑后的图片持久化到应用目录
       final persistedPath = await ImageStorageService.copyAndCompress(editedPath);
