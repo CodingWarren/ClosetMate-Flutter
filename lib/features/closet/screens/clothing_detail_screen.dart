@@ -563,7 +563,7 @@ class _AiOutfitSheetState extends State<_AiOutfitSheet> {
                           const SizedBox(height: 10),
                           // 单品缩略图横向排列
                           SizedBox(
-                            height: 72,
+                            height: 88,
                             child: ListView.separated(
                               scrollDirection: Axis.horizontal,
                               itemCount: items.length,
