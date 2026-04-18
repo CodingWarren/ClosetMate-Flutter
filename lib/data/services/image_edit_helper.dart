@@ -14,6 +14,9 @@ class ImageEditHelper {
 
     final croppedFile = await ImageCropper().cropImage(
       sourcePath: imagePath,
+      // 强制输出 PNG 格式，保留透明通道（防止透明背景变黑）
+      compressFormat: ImageCompressFormat.png,
+      compressQuality: 100,
       uiSettings: [
         AndroidUiSettings(
           toolbarTitle: '编辑图片',
