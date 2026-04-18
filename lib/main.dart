@@ -70,69 +70,66 @@ class ClosetMateApp extends StatefulWidget {
 
 class _ClosetMateAppState extends State<ClosetMateApp> {
   bool _isLocked = false;
-  bool _lockChecked = false;
+  bool _ready = false;
 
   @override
   void initState() {
     super.initState();
-    _checkLock();
+    _initialize();
   }
 
-  Future<void> _checkLock() async {
+  Future<void> _initialize() async {
+    // 并行执行锁定检查和图片路径修复，两者都完成后再展示主界面
+    // 这样可以确保 closet controller 加载数据时路径已经修复好
+    final lockFuture = _performLockCheck();
+    final pathFixFuture = _performPathFix();
+
+    final locked = await lockFuture;
+    await pathFixFuture;
+
+    if (!mounted) return;
+    setState(() {
+      _isLocked = locked;
+      _ready = true;
+    });
+  }
+
+  Future<bool> _performLockCheck() async {
     try {
       print('Checking app lock status...');
-      // 添加超时，避免无限等待
       final locked = await AppLockService.isLockEnabled
           .timeout(const Duration(seconds: 5), onTimeout: () {
         print('Lock check timeout, assuming unlocked');
         return false;
       });
       print('Lock status: $locked');
-      if (!mounted) return;
-      setState(() {
-        _isLocked = locked;
-        _lockChecked = true;
-      });
-
-      // 在后台运行图片路径修复
-      _runImagePathFix();
+      return locked;
     } catch (error, stackTrace) {
       print('Error checking lock: $error');
       print('Stack trace: $stackTrace');
-      if (!mounted) return;
-      setState(() {
-        _isLocked = false; // 出错时默认不锁定
-        _lockChecked = true;
-      });
-
-      // 即使在错误情况下也尝试修复路径
-      _runImagePathFix();
+      return false;
     }
   }
 
-  /// 在后台运行图片路径修复
-  void _runImagePathFix() {
-    Future(() async {
-      try {
-        print('Checking if image path fix is needed...');
-        final needsFix = await ImagePathFixer.needsFix();
-        if (needsFix) {
-          print('Running image path fix...');
-          final fixedCount = await ImagePathFixer.fixAllImagePaths();
-          print('Image path fix completed: $fixedCount items fixed');
-        } else {
-          print('Image paths are OK, no fix needed');
-        }
-      } catch (e) {
-        print('Error running image path fix: $e');
+  Future<void> _performPathFix() async {
+    try {
+      print('Checking if image path fix is needed...');
+      final needsFix = await ImagePathFixer.needsFix();
+      if (needsFix) {
+        print('Running image path fix...');
+        final fixedCount = await ImagePathFixer.fixAllImagePaths();
+        print('Image path fix completed: $fixedCount items fixed');
+      } else {
+        print('Image paths are OK, no fix needed');
       }
-    });
+    } catch (e) {
+      print('Error running image path fix: $e');
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    if (!_lockChecked) {
-      // 检查锁状态期间显示启动画面
+    if (!_ready) {
       return MaterialApp(
         debugShowCheckedModeBanner: false,
         theme: AppTheme.lightTheme,
