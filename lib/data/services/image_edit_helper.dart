@@ -24,6 +24,8 @@ class ImageEditHelper {
           lockAspectRatio: false,
           hideBottomControls: false,
           showCropGrid: true,
+          backgroundColor: Colors.white,
+          dimmedLayerColor: Colors.black54,
         ),
         IOSUiSettings(
           title: '编辑图片',

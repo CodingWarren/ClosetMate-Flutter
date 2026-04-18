@@ -307,6 +307,166 @@ class OutfitRecommendService {
     }.contains(category);
   }
 
+  /// 核心单品搭配：以 [coreItem] 为核心，生成 [count] 套必须包含该单品的搭配方案。
+  static RecommendState generateForCoreItem({
+    required ClothingModel coreItem,
+    required List<ClothingModel> allClothing,
+    int count = 3,
+  }) {
+    final available = allClothing
+        .where((c) => c.status != ClothingStatus.disposed && c.id != coreItem.id)
+        .toList();
+
+    if (available.isEmpty) {
+      return RecommendInsufficientClothing(1);
+    }
+
+    final now = DateTime.now().millisecondsSinceEpoch;
+
+    // 按闲置时间排序（优先推荐闲置久的）
+    final sorted = [...available]..sort((a, b) {
+        final aDays = a.lastWornAt > 0
+            ? ((now - a.lastWornAt) ~/ Duration.millisecondsPerDay)
+            : 999999;
+        final bDays = b.lastWornAt > 0
+            ? ((now - b.lastWornAt) ~/ Duration.millisecondsPerDay)
+            : 999999;
+        return bDays.compareTo(aDays);
+      });
+
+    final tops = sorted.where((e) => _isTopCategory(e.category)).toList();
+    final bottoms = sorted.where((e) => _isBottomCategory(e.category)).toList();
+    final dresses = sorted.where((e) => e.category == ClothingCategory.dress).toList();
+    final outers = sorted.where((e) => _isOuterCategory(e.category)).toList();
+    final shoes = sorted.where((e) => e.category == ClothingCategory.shoes).toList();
+
+    final coreCategory = coreItem.category;
+    final isCoreTop = _isTopCategory(coreCategory);
+    final isCoreBottom = _isBottomCategory(coreCategory);
+    final isCoreOuter = _isOuterCategory(coreCategory);
+    final isCoreDress = coreCategory == ClothingCategory.dress;
+    final isCoreShoes = coreCategory == ClothingCategory.shoes;
+
+    final recommendations = <RecommendedOutfit>[];
+    final usedCombinationKeys = <String>{};
+
+    for (var i = 0; i < count * 3 && recommendations.length < count; i++) {
+      ClothingModel? topItem;
+      ClothingModel? bottomItem;
+      ClothingModel? outerItem;
+      ClothingModel? shoesItem;
+
+      // 根据核心单品的品类，决定其他槽位如何填充
+      if (isCoreTop || isCoreDress) {
+        topItem = coreItem;
+        if (!isCoreDress) {
+          // 需要下装
+          final idx = i % bottoms.length.clamp(1, 999);
+          bottomItem = bottoms.isNotEmpty ? bottoms[idx % bottoms.length] : null;
+        }
+        if (outers.isNotEmpty && i % 2 == 0) {
+          outerItem = outers[i % outers.length];
+        }
+        shoesItem = shoes.isNotEmpty ? shoes[i % shoes.length] : null;
+      } else if (isCoreBottom) {
+        bottomItem = coreItem;
+        final idx = i % tops.length.clamp(1, 999);
+        topItem = tops.isNotEmpty ? tops[idx % tops.length] : null;
+        if (outers.isNotEmpty && i % 2 == 0) {
+          outerItem = outers[i % outers.length];
+        }
+        shoesItem = shoes.isNotEmpty ? shoes[i % shoes.length] : null;
+      } else if (isCoreOuter) {
+        outerItem = coreItem;
+        final topIdx = i % tops.length.clamp(1, 999);
+        topItem = tops.isNotEmpty ? tops[topIdx % tops.length] : null;
+        final botIdx = i % bottoms.length.clamp(1, 999);
+        bottomItem = bottoms.isNotEmpty ? bottoms[botIdx % bottoms.length] : null;
+        shoesItem = shoes.isNotEmpty ? shoes[i % shoes.length] : null;
+      } else if (isCoreShoes) {
+        shoesItem = coreItem;
+        final topIdx = i % tops.length.clamp(1, 999);
+        topItem = tops.isNotEmpty ? tops[topIdx % tops.length] : null;
+        final botIdx = i % bottoms.length.clamp(1, 999);
+        bottomItem = bottoms.isNotEmpty ? bottoms[botIdx % bottoms.length] : null;
+        if (outers.isNotEmpty && i % 2 == 0) {
+          outerItem = outers[i % outers.length];
+        }
+      } else {
+        // 包包/配饰：作为配件，搭配一套完整穿搭
+        topItem = tops.isNotEmpty ? tops[i % tops.length] : null;
+        bottomItem = bottoms.isNotEmpty ? bottoms[i % bottoms.length] : null;
+        shoesItem = shoes.isNotEmpty ? shoes[i % shoes.length] : null;
+      }
+
+      // 必须有上衣（或连衣裙）
+      if (topItem == null && !isCoreDress) continue;
+      // 非连衣裙必须有下装
+      if (!isCoreDress && bottomItem == null && !isCoreOuter) continue;
+
+      // 去重：同一组合不重复推荐
+      final key = [
+        topItem?.id ?? '',
+        bottomItem?.id ?? '',
+        outerItem?.id ?? '',
+        shoesItem?.id ?? '',
+      ].join('|');
+      if (usedCombinationKeys.contains(key)) continue;
+      usedCombinationKeys.add(key);
+
+      final idleItems = <String>[];
+      for (final item in [topItem, bottomItem, outerItem].whereType<ClothingModel>()) {
+        if (item.id == coreItem.id) continue;
+        if (item.lastWornAt > 0) {
+          final days = (now - item.lastWornAt) ~/ Duration.millisecondsPerDay;
+          if (days >= 30) idleItems.add('${item.category}已 $days 天未穿');
+        } else if (item.wearCount == 0) {
+          idleItems.add('${item.category}还未穿过');
+        }
+      }
+
+      final reason = '以${coreItem.category}为核心单品搭配'
+          '${idleItems.isNotEmpty ? "，${idleItems.first}" : ""}';
+
+      final outfit = OutfitModel(
+        id: _uuid.v4(),
+        name: 'AI搭配 · 方案 ${recommendations.length + 1}',
+        topId: (topItem != null && topItem.category != ClothingCategory.dress)
+            ? topItem.id
+            : '',
+        bottomId: bottomItem?.id ?? '',
+        outerId: outerItem?.id ?? '',
+        shoesId: shoesItem?.id ?? '',
+        bagId: '',
+        accessoryIds: '',
+        sceneTags: '休闲,通勤',
+        isFavorite: false,
+        wearCount: 0,
+        lastWornAt: 0,
+        notes: '',
+        isAiGenerated: true,
+        aiReason: reason.length > 100 ? reason.substring(0, 100) : reason,
+        userFeedback: OutfitFeedback.none,
+      );
+
+      recommendations.add(RecommendedOutfit(
+        outfit: outfit,
+        topItem: (topItem?.category != ClothingCategory.dress) ? topItem : null,
+        bottomItem: isCoreDress ? null : bottomItem,
+        outerItem: outerItem,
+        shoesItem: shoesItem,
+        idleItems: idleItems,
+        coreItem: coreItem,
+      ));
+    }
+
+    if (recommendations.isEmpty) {
+      return RecommendInsufficientClothing(available.length + 1);
+    }
+
+    return RecommendSuccess(recommendations);
+  }
+
   static int getIdleDays(ClothingModel clothing) {
     if (clothing.lastWornAt == 0) return -1;
     return (DateTime.now().millisecondsSinceEpoch - clothing.lastWornAt) ~/
@@ -342,6 +502,7 @@ class RecommendedOutfit {
     required this.outerItem,
     required this.shoesItem,
     required this.idleItems,
+    this.coreItem,
   });
 
   final OutfitModel outfit;
@@ -350,4 +511,6 @@ class RecommendedOutfit {
   final ClothingModel? outerItem;
   final ClothingModel? shoesItem;
   final List<String> idleItems;
+  /// 核心单品（仅在"核心单品搭配"模式下有值）
+  final ClothingModel? coreItem;
 }

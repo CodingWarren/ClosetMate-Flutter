@@ -1,6 +1,9 @@
 import 'package:closetmate/data/models/clothing_model.dart';
+import 'package:closetmate/data/models/outfit_model.dart';
 import 'package:closetmate/data/repositories/clothing_repository.dart';
+import 'package:closetmate/data/repositories/outfit_repository.dart';
 import 'package:closetmate/data/services/image_edit_helper.dart';
+import 'package:closetmate/data/services/recommend/outfit_recommend_service.dart';
 import 'package:closetmate/shared/widgets/clothing_image.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
@@ -20,6 +23,7 @@ class ClothingDetailScreen extends StatefulWidget {
 
 class _ClothingDetailScreenState extends State<ClothingDetailScreen> {
   final ClothingRepository _repository = ClothingRepository();
+  final OutfitRepository _outfitRepository = OutfitRepository();
 
   ClothingModel? clothing;
   bool isLoading = true;
@@ -57,6 +61,49 @@ class _ClothingDetailScreenState extends State<ClothingDetailScreen> {
       );
       await _load();
     }
+  }
+
+  Future<void> _showAiOutfitSheet() async {
+    final item = clothing;
+    if (item == null) return;
+
+    final allClothing = await _repository.getAllClothing();
+    if (!mounted) return;
+
+    final result = OutfitRecommendService.generateForCoreItem(
+      coreItem: item,
+      allClothing: allClothing,
+    );
+
+    if (!mounted) return;
+
+    if (result is RecommendInsufficientClothing) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('衣橱里的衣物还不够多，无法生成搭配方案')),
+      );
+      return;
+    }
+
+    if (result is! RecommendSuccess) return;
+
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (context) => _AiOutfitSheet(
+        coreItem: item,
+        outfits: result.outfits,
+        allClothing: allClothing,
+        onSave: (outfit) async {
+          await _outfitRepository.insertOutfit(outfit);
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('✅ 搭配已保存到我的搭配列表')),
+            );
+          }
+        },
+      ),
+    );
   }
 
   Future<void> _markWorn() async {
@@ -354,20 +401,31 @@ class _ClothingDetailScreenState extends State<ClothingDetailScreen> {
                                   ),
                             ),
                             const SizedBox(height: 28),
-                            SizedBox(
-                              width: double.infinity,
-                              child: OutlinedButton.icon(
-                                onPressed: () async {
-                                  final saved = await context.push<bool>(
-                                    '/clothing/${widget.clothingId}/edit',
-                                  );
-                                  if (saved == true) {
-                                    await _load();
-                                  }
-                                },
-                                icon: const Icon(Icons.edit),
-                                label: const Text('编辑'),
-                              ),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: OutlinedButton.icon(
+                                    onPressed: () async {
+                                      final saved = await context.push<bool>(
+                                        '/clothing/${widget.clothingId}/edit',
+                                      );
+                                      if (saved == true) {
+                                        await _load();
+                                      }
+                                    },
+                                    icon: const Icon(Icons.edit, size: 16),
+                                    label: const Text('编辑'),
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: FilledButton.icon(
+                                    onPressed: _showAiOutfitSheet,
+                                    icon: const Icon(Icons.auto_awesome, size: 16),
+                                    label: const Text('AI 搭配'),
+                                  ),
+                                ),
+                              ],
                             ),
                           ],
                         ),
@@ -382,6 +440,212 @@ class _ClothingDetailScreenState extends State<ClothingDetailScreen> {
     final days = (DateTime.now().millisecondsSinceEpoch - timestamp) ~/
         Duration.millisecondsPerDay;
     return days == 0 ? '今天' : '$days 天前';
+  }
+}
+
+// ─── AI 搭配结果底部弹窗 ──────────────────────────────────────────────────────
+
+class _AiOutfitSheet extends StatefulWidget {
+  const _AiOutfitSheet({
+    required this.coreItem,
+    required this.outfits,
+    required this.allClothing,
+    required this.onSave,
+  });
+
+  final ClothingModel coreItem;
+  final List<RecommendedOutfit> outfits;
+  final List<ClothingModel> allClothing;
+  final Future<void> Function(OutfitModel) onSave;
+
+  @override
+  State<_AiOutfitSheet> createState() => _AiOutfitSheetState();
+}
+
+class _AiOutfitSheetState extends State<_AiOutfitSheet> {
+  final Set<String> _savedIds = {};
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return DraggableScrollableSheet(
+      initialChildSize: 0.75,
+      minChildSize: 0.5,
+      maxChildSize: 0.95,
+      expand: false,
+      builder: (context, scrollController) {
+        return Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 4, 20, 12),
+              child: Row(
+                children: [
+                  Icon(Icons.auto_awesome, size: 18, color: colorScheme.primary),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'AI 搭配方案',
+                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                        ),
+                        Text(
+                          '以「${widget.coreItem.category}」为核心单品，共 ${widget.outfits.length} 套方案',
+                          style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Divider(height: 1),
+            Expanded(
+              child: ListView.separated(
+                controller: scrollController,
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
+                itemCount: widget.outfits.length,
+                separatorBuilder: (_, __) => const SizedBox(height: 12),
+                itemBuilder: (context, index) {
+                  final recommended = widget.outfits[index];
+                  final isSaved = _savedIds.contains(recommended.outfit.id);
+
+                  // 收集所有单品（含核心单品）
+                  final items = <ClothingModel>[];
+                  if (recommended.coreItem != null) items.add(recommended.coreItem!);
+                  if (recommended.topItem != null && recommended.topItem!.id != recommended.coreItem?.id) {
+                    items.add(recommended.topItem!);
+                  }
+                  if (recommended.bottomItem != null && recommended.bottomItem!.id != recommended.coreItem?.id) {
+                    items.add(recommended.bottomItem!);
+                  }
+                  if (recommended.outerItem != null && recommended.outerItem!.id != recommended.coreItem?.id) {
+                    items.add(recommended.outerItem!);
+                  }
+                  if (recommended.shoesItem != null && recommended.shoesItem!.id != recommended.coreItem?.id) {
+                    items.add(recommended.shoesItem!);
+                  }
+
+                  return Card(
+                    child: Padding(
+                      padding: const EdgeInsets.all(14),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  recommended.outfit.name,
+                                  style: const TextStyle(fontWeight: FontWeight.bold),
+                                ),
+                              ),
+                              if (isSaved)
+                                Icon(Icons.bookmark_added, size: 16, color: colorScheme.primary)
+                              else
+                                FilledButton.tonal(
+                                  onPressed: () async {
+                                    await widget.onSave(recommended.outfit);
+                                    if (mounted) {
+                                      setState(() => _savedIds.add(recommended.outfit.id));
+                                    }
+                                  },
+                                  style: FilledButton.styleFrom(
+                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                    minimumSize: const Size(0, 32),
+                                  ),
+                                  child: const Text('保存', style: TextStyle(fontSize: 12)),
+                                ),
+                            ],
+                          ),
+                          const SizedBox(height: 10),
+                          // 单品缩略图横向排列
+                          SizedBox(
+                            height: 72,
+                            child: ListView.separated(
+                              scrollDirection: Axis.horizontal,
+                              itemCount: items.length,
+                              separatorBuilder: (_, __) => const SizedBox(width: 8),
+                              itemBuilder: (context, idx) {
+                                final c = items[idx];
+                                final isCore = c.id == widget.coreItem.id;
+                                final imageUrl = c.imageUriList.isNotEmpty ? c.imageUriList.first : null;
+
+                                return Column(
+                                  children: [
+                                    Stack(
+                                      children: [
+                                        ClipRRect(
+                                          borderRadius: BorderRadius.circular(8),
+                                          child: Container(
+                                            width: 52,
+                                            height: 52,
+                                            color: isCore
+                                                ? colorScheme.primaryContainer
+                                                : colorScheme.surfaceContainerHighest,
+                                            alignment: Alignment.center,
+                                            child: imageUrl != null
+                                                ? ClothingImage(
+                                                    imageUrl: imageUrl,
+                                                    fit: BoxFit.cover,
+                                                    width: 52,
+                                                    height: 52,
+                                                    fallbackIcon: Icons.checkroom,
+                                                    fallbackIconSize: 20,
+                                                  )
+                                                : const Icon(Icons.checkroom, size: 20),
+                                          ),
+                                        ),
+                                        if (isCore)
+                                          Positioned(
+                                            top: 2,
+                                            right: 2,
+                                            child: Container(
+                                              width: 14,
+                                              height: 14,
+                                              decoration: BoxDecoration(
+                                                color: colorScheme.primary,
+                                                shape: BoxShape.circle,
+                                              ),
+                                              child: Icon(Icons.star, size: 9, color: colorScheme.onPrimary),
+                                            ),
+                                          ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      c.category,
+                                      style: TextStyle(
+                                        fontSize: 10,
+                                        color: isCore ? colorScheme.primary : colorScheme.onSurfaceVariant,
+                                        fontWeight: isCore ? FontWeight.w600 : FontWeight.normal,
+                                      ),
+                                    ),
+                                  ],
+                                );
+                              },
+                            ),
+                          ),
+                          if (recommended.outfit.aiReason.isNotEmpty) ...[
+                            const SizedBox(height: 8),
+                            Text(
+                              recommended.outfit.aiReason,
+                              style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
+        );
+      },
+    );
   }
 }
 
