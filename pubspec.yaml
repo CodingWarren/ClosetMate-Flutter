@@ -32,6 +32,9 @@ dependencies:
   # Network
   http: ^1.4.0
 
+  # Env / secrets
+  flutter_dotenv: ^5.2.1
+
   # Image / media
   image_picker: ^1.2.0
   image_cropper: ^9.1.0
@@ -62,3 +65,4 @@ flutter:
 
   assets:
     - assets/images/
+    - .env

@@ -7,6 +7,7 @@ import 'package:closetmate/data/services/app_lock_service.dart';
 import 'package:closetmate/data/services/image_path_fixer.dart';
 import 'package:closetmate/features/lock/screens/lock_screen.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 void main() async {
@@ -27,6 +28,8 @@ void main() async {
     };
 
     try {
+      // 加载 .env 文件（必须在 initDefaultKeys 之前）
+      await dotenv.load(fileName: '.env');
       // 首次启动时写入默认 API Key
       await ApiConfigService.initDefaultKeys();
       runApp(const ProviderScope(child: ClosetMateApp()));
