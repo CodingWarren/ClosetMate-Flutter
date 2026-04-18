@@ -1,4 +1,4 @@
-package com.closetmate.closetmate
+package com.warren.closetmate
 
 import io.flutter.embedding.android.FlutterFragmentActivity
 
