@@ -5,6 +5,8 @@ import 'dart:io';
 import 'package:closetmate/data/models/clothing_model.dart';
 import 'package:closetmate/data/services/api_config_service.dart';
 import 'package:closetmate/data/services/http_client.dart';
+import 'package:flutter/foundation.dart';
+import 'package:image/image.dart' as img;
 
 /// 百度 AI 图像识别服务
 ///
@@ -40,9 +42,11 @@ class BaiduAiService {
     final file = File(imagePath);
     if (!file.existsSync()) return const AiTagError('图片文件不存在');
 
-    final bytes = await file.readAsBytes();
+    final originalBytes = await file.readAsBytes();
+    // 上传前极限压缩：缩小到 800×800 以内，确保 Base64 后不超过 1MB 请求限制
+    final bytes = await _compressForAiUpload(originalBytes);
     final base64Image = base64Encode(bytes);
-    print('[BaiduAI] 图片大小: ${bytes.length} bytes，Base64 长度: ${base64Image.length}');
+    print('[BaiduAI] 原始大小: ${originalBytes.length} bytes → 压缩后: ${bytes.length} bytes，Base64: ${base64Image.length}');
 
     try {
       final client = createHttpClient();
@@ -82,6 +86,36 @@ class BaiduAiService {
       print('[BaiduAI] 代理未知错误: $e');
       return AiTagError('识别失败：$e');
     }
+  }
+
+  // ─── 上传前极限压缩 ───────────────────────────────────────────────────────
+
+  static Future<List<int>> _compressForAiUpload(List<int> bytes) async {
+    return compute(_compressIsolate, bytes);
+  }
+
+  static List<int> _compressIsolate(List<int> bytes) {
+    final decoded = img.decodeImage(bytes);
+    if (decoded == null) return bytes;
+
+    img.Image resized = decoded;
+    if (decoded.width > 800 || decoded.height > 800) {
+      resized = img.copyResize(
+        decoded,
+        width: decoded.width > decoded.height ? 800 : -1,
+        height: decoded.height >= decoded.width ? 800 : -1,
+      );
+    }
+
+    int quality = 60;
+    List<int> compressed;
+    do {
+      compressed = img.encodeJpg(resized, quality: quality);
+      if (compressed.length <= 200 * 1024 || quality <= 20) break;
+      quality -= 10;
+    } while (true);
+
+    return compressed;
   }
 
   // ─── 直连模式 ─────────────────────────────────────────────────────────────

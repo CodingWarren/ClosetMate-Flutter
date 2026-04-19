@@ -5,7 +5,9 @@ import 'dart:io';
 import 'package:closetmate/data/services/api_config_service.dart';
 import 'package:closetmate/data/services/http_client.dart';
 import 'package:closetmate/data/services/image_storage_service.dart';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import 'package:image/image.dart' as img;
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
@@ -45,9 +47,11 @@ class RemoveBgService {
     final file = File(imagePath);
     if (!file.existsSync()) return const RemoveBgError('图片文件不存在');
 
-    final bytes = await file.readAsBytes();
+    final originalBytes = await file.readAsBytes();
+    // 上传前极限压缩：缩小到 800×800 以内，确保 Base64 后不超过 1MB 请求限制
+    final bytes = await _compressForAiUpload(originalBytes);
     final base64Image = base64Encode(bytes);
-    print('[RemoveBg] 图片大小: ${bytes.length} bytes，Base64 长度: ${base64Image.length}');
+    print('[RemoveBg] 原始大小: ${originalBytes.length} bytes → 压缩后: ${bytes.length} bytes，Base64: ${base64Image.length}');
 
     try {
       final client = createHttpClient();
@@ -93,6 +97,39 @@ class RemoveBgService {
       print('[RemoveBg] 代理未知错误: $e');
       return RemoveBgError('抠图失败：$e');
     }
+  }
+
+  // ─── 上传前极限压缩 ───────────────────────────────────────────────────────
+
+  /// 将图片缩小到 800×800 以内并以 JPEG 60% 质量压缩，确保 Base64 后 < 1MB。
+  /// 在 Isolate 中执行，不阻塞 UI 线程。
+  static Future<List<int>> _compressForAiUpload(List<int> bytes) async {
+    return compute(_compressIsolate, bytes);
+  }
+
+  static List<int> _compressIsolate(List<int> bytes) {
+    final decoded = img.decodeImage(bytes);
+    if (decoded == null) return bytes;
+
+    img.Image resized = decoded;
+    if (decoded.width > 800 || decoded.height > 800) {
+      resized = img.copyResize(
+        decoded,
+        width: decoded.width > decoded.height ? 800 : -1,
+        height: decoded.height >= decoded.width ? 800 : -1,
+      );
+    }
+
+    // 逐步降质，确保 < 200KB（Base64 后约 266KB，远低于 1MB 限制）
+    int quality = 60;
+    List<int> compressed;
+    do {
+      compressed = img.encodeJpg(resized, quality: quality);
+      if (compressed.length <= 200 * 1024 || quality <= 20) break;
+      quality -= 10;
+    } while (true);
+
+    return compressed;
   }
 
   // ─── 直连模式 ─────────────────────────────────────────────────────────────
