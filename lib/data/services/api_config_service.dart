@@ -12,6 +12,7 @@ class ApiConfigService {
   static const String _keyBaiduAiAppId = 'api_baidu_app_id';
   static const String _keyBaiduAiApiKey = 'api_baidu_api_key';
   static const String _keyBaiduAiSecretKey = 'api_baidu_secret_key';
+  static const String _keyProxyBaseUrl = 'api_proxy_base_url';
   static const String _keyInitialized = 'api_keys_initialized';
 
   // ─── 从 .env 文件读取默认值 ───────────────────────────────────────────────
@@ -26,6 +27,8 @@ class ApiConfigService {
       dotenv.env['BAIDU_AI_API_KEY'] ?? '';
   static String get _defaultBaiduSecretKey =>
       dotenv.env['BAIDU_AI_SECRET_KEY'] ?? '';
+  static String get _defaultProxyBaseUrl =>
+      dotenv.env['PROXY_BASE_URL'] ?? '';
 
   /// 首次启动时写入默认 Key（不覆盖用户已修改的值）
   static Future<void> initDefaultKeys() async {
@@ -37,6 +40,7 @@ class ApiConfigService {
     await prefs.setString(_keyRemoveBgApiKey, _defaultRemoveBgKey);
     await prefs.setString(_keyBaiduAiApiKey, _defaultBaiduApiKey);
     await prefs.setString(_keyBaiduAiSecretKey, _defaultBaiduSecretKey);
+    // 代理地址不写入 SharedPreferences 默认值，每次从 .env 读取
     await prefs.setBool(_keyInitialized, true);
   }
 
@@ -90,6 +94,26 @@ class ApiConfigService {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getString(_keyBaiduAiSecretKey) ?? _defaultBaiduSecretKey;
   }
+
+  // ─── 代理服务器 ───────────────────────────────────────────────────────────────
+
+  /// 返回代理服务器基础 URL（优先级：SharedPreferences > .env > 空字符串）
+  ///
+  /// 若非空，所有 AI / 天气请求将通过代理发送，不再需要在客户端配置 API Key。
+  static Future<String> get proxyBaseUrl async {
+    final prefs = await SharedPreferences.getInstance();
+    final stored = prefs.getString(_keyProxyBaseUrl) ?? '';
+    if (stored.isNotEmpty) return stored;
+    return _defaultProxyBaseUrl;
+  }
+
+  static Future<void> setProxyBaseUrl(String url) async {
+    final prefs = await SharedPreferences.getInstance();
+    // 去掉末尾斜杠，保持统一格式
+    await prefs.setString(_keyProxyBaseUrl, url.trimRight().replaceAll(RegExp(r'/+$'), ''));
+  }
+
+  // ─── 百度 AI ──────────────────────────────────────────────────────────────
 
   static Future<void> setBaiduCredentials({
     required String appId,

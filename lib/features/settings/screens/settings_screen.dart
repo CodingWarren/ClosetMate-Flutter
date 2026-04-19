@@ -333,6 +333,25 @@ class _SettingsScreenState extends State<SettingsScreen> {
               child: Column(
                 children: [
                   _SettingsTile(
+                    icon: Icons.dns_outlined,
+                    title: '代理服务器',
+                    subtitle: '配置后 API Key 存于服务端，更安全',
+                    onTap: () => _showApiConfigDialog(
+                      title: '代理服务器配置',
+                      fields: const [
+                        _ApiField(
+                          key: 'proxy_url',
+                          label: '代理地址（如：https://service-xxx.gz.apigw.tencentcs.com/release）',
+                        ),
+                      ],
+                      loaders: [ApiConfigService.proxyBaseUrl],
+                      onSave: (values) async {
+                        await ApiConfigService.setProxyBaseUrl(values[0]);
+                      },
+                    ),
+                  ),
+                  const Divider(indent: 56, height: 1),
+                  _SettingsTile(
                     icon: Icons.cloud_outlined,
                     title: '和风天气 API',
                     subtitle: '配置天气服务 Key 和城市',
