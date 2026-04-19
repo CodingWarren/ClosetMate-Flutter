@@ -100,7 +100,7 @@ class RemoveBgService {
       final client = createHttpClient();
       final request = http.MultipartRequest('POST', Uri.parse(_directApiUrl))
         ..headers['X-Api-Key'] = apiKey
-        ..fields['size'] = 'auto'
+        ..fields['size'] = 'preview' // preview 限制 0.25MP，体积小、速度快
         ..files.add(
           await http.MultipartFile.fromPath('image_file', imagePath),
         );

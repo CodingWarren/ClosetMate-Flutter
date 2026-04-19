@@ -81,7 +81,7 @@ async function handleRemoveBg(event, headers) {
 
   // 手动构建 multipart/form-data（无需外部依赖）
   const multipart = buildMultipart(boundary, {
-    fields: { size: 'auto' },
+    fields: { size: 'preview' },  // preview 限制 0.25MP，避免超出 API 网关响应大小限制
     files: [{
       name:        'image_file',
       filename:    'image.png',
