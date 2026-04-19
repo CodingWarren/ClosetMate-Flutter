@@ -111,7 +111,16 @@ async function handleRemoveBg(event, headers) {
   }
 
   console.log(`[RemoveBg] Success, result size: ${result.body.length} bytes`);
-  return makeResp(200, { image_base64: result.body.toString('base64') }, headers);
+  // 直接返回二进制 PNG，避免 Base64 编码带来的 33% 体积膨胀，防止触碰 1MB 限制
+  return {
+    statusCode: 200,
+    headers: {
+      'Content-Type':                'image/png',
+      'Access-Control-Allow-Origin': '*',
+    },
+    isBase64Encoded: true,
+    body: result.body.toString('base64'),
+  };
 }
 
 // ─── 百度 AI 识别代理 ─────────────────────────────────────────────────────────

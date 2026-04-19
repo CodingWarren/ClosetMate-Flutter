@@ -62,14 +62,25 @@ class RemoveBgService {
       print('[RemoveBg] 代理响应状态: ${response.statusCode}');
 
       if (response.statusCode == 200) {
-        final json = jsonDecode(response.body) as Map<String, dynamic>;
-        final resultBase64 = json['image_base64'] as String?;
-        if (resultBase64 == null || resultBase64.isEmpty) {
+        final contentType = response.headers['content-type'] ?? '';
+        if (contentType.startsWith('image/')) {
+          // 新格式：云函数直接返回二进制 PNG，体积最小
+          final processedPath = await _saveProcessedImage(response.bodyBytes);
+          print('[RemoveBg] 抠图成功（代理-二进制），保存到: $processedPath');
+          return RemoveBgSuccess(processedPath);
+        } else {
+          // 旧格式兼容：JSON 包装的 Base64
+          try {
+            final json = jsonDecode(response.body) as Map<String, dynamic>;
+            final resultBase64 = json['image_base64'] as String?;
+            if (resultBase64 != null && resultBase64.isNotEmpty) {
+              final processedPath = await _saveProcessedImage(base64Decode(resultBase64));
+              print('[RemoveBg] 抠图成功（代理-JSON），保存到: $processedPath');
+              return RemoveBgSuccess(processedPath);
+            }
+          } catch (_) {}
           return const RemoveBgError('代理服务返回数据异常');
         }
-        final processedPath = await _saveProcessedImage(base64Decode(resultBase64));
-        print('[RemoveBg] 抠图成功（代理），保存到: $processedPath');
-        return RemoveBgSuccess(processedPath);
       } else {
         final errorBody = response.body;
         print('[RemoveBg] 代理失败响应体: $errorBody');
