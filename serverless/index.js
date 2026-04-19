@@ -210,9 +210,11 @@ async function handleWeather(event, headers) {
     }, headers);
   }
 
+  // 返回 GeoAPI 解析出的真实城市名（而非原始输入，可能是坐标字符串）
+  const resolvedCity = geoJson.location[0].name || city;
   return makeResp(200, {
     code: '200',
-    city,
+    city: resolvedCity,
     now:  weatherJson.now,
   }, headers);
 }

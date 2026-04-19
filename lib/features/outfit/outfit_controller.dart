@@ -3,6 +3,8 @@ import 'package:closetmate/data/models/outfit_model.dart';
 import 'package:closetmate/data/repositories/clothing_repository.dart';
 import 'package:closetmate/data/repositories/outfit_repository.dart';
 import 'package:closetmate/data/repositories/repository_providers.dart';
+import 'package:closetmate/data/services/api_config_service.dart';
+import 'package:closetmate/data/services/location_service.dart';
 import 'package:closetmate/data/services/recommend/outfit_recommend_service.dart';
 import 'package:closetmate/data/services/weather/qweather_service.dart';
 import 'package:closetmate/data/services/weather/weather_service.dart';
@@ -128,7 +130,17 @@ class OutfitController extends StateNotifier<OutfitState> {
     state = state.copyWith(recommendState: const RecommendLoading());
 
     // 尝试获取真实天气；失败时降级为 Mock 数据
-    final weatherResult = await QWeatherService.getWeatherByCity();
+    WeatherResult weatherResult;
+    final useLocation = await ApiConfigService.useLocationWeather;
+    if (useLocation) {
+      // GPS 定位模式：获取当前坐标，传给天气 API
+      final locationStr = await LocationService.getCurrentLocationString();
+      weatherResult = await QWeatherService.getWeatherByCity(locationStr);
+    } else {
+      // 手动城市模式
+      weatherResult = await QWeatherService.getWeatherByCity();
+    }
+
     if (weatherResult is WeatherSuccess) {
       _currentWeather = weatherResult.weather;
     } else {
@@ -138,7 +150,7 @@ class OutfitController extends StateNotifier<OutfitState> {
         feelsLike: 20,
         description: '晴',
         icon: '100',
-        cityName: '北京',
+        cityName: '未知城市',
         windSpeed: '3',
         humidity: '40',
       );

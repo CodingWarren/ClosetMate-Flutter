@@ -69,6 +69,10 @@
 	<!-- 相册写入权限（保存处理后的图片，iOS 14 以下需要） -->
 	<key>NSPhotoLibraryAddUsageDescription</key>
 	<string>ClosetMate 需要保存处理后的衣物图片到您的相册。</string>
+
+	<!-- 位置权限（GPS 定位获取当地天气） -->
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>ClosetMate 需要获取您的位置以显示当地实时天气，为您提供更准确的穿搭建议。</string>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>

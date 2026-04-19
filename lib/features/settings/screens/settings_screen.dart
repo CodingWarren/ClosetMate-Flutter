@@ -17,6 +17,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _isBiometricAvailable = false;
   bool _isBackingUp = false;
   bool _isRestoring = false;
+  bool _useLocationWeather = false;
   final _backupButtonKey = GlobalKey();
 
   @override
@@ -29,11 +30,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final lockEnabled = await AppLockService.isLockEnabled;
     final bioEnabled = await AppLockService.isBiometricEnabled;
     final bioAvailable = await AppLockService.isBiometricAvailable;
+    final useLocation = await ApiConfigService.useLocationWeather;
     if (!mounted) return;
     setState(() {
       _isLockEnabled = lockEnabled;
       _isBiometricEnabled = bioEnabled;
       _isBiometricAvailable = bioAvailable;
+      _useLocationWeather = useLocation;
     });
   }
 
@@ -359,7 +362,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       title: '和风天气配置',
                       fields: const [
                         _ApiField(key: 'qweather_key', label: 'API Key'),
-                        _ApiField(key: 'qweather_city', label: '城市（如：北京）'),
+                        _ApiField(key: 'qweather_city', label: '默认城市（如：北京）'),
                       ],
                       loaders: [
                         ApiConfigService.qWeatherApiKey,
@@ -369,6 +372,48 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         await ApiConfigService.setQWeatherApiKey(values[0]);
                         await ApiConfigService.setQWeatherCity(values[1]);
                       },
+                    ),
+                  ),
+                  const Divider(indent: 56, height: 1),
+                  // 自动定位天气开关
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.my_location_outlined,
+                          color: colorScheme.onSurfaceVariant,
+                          size: 22,
+                        ),
+                        const SizedBox(width: 18),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                '自动定位当前城市',
+                                style: TextStyle(fontWeight: FontWeight.w500),
+                              ),
+                              Text(
+                                _useLocationWeather
+                                    ? '已开启：使用 GPS 获取当地天气'
+                                    : '关闭：使用上方配置的默认城市',
+                                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                      color: colorScheme.onSurfaceVariant,
+                                    ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Switch(
+                          value: _useLocationWeather,
+                          onChanged: (value) async {
+                            await ApiConfigService.setUseLocationWeather(value);
+                            if (!mounted) return;
+                            setState(() => _useLocationWeather = value);
+                          },
+                        ),
+                      ],
                     ),
                   ),
                   const Divider(indent: 56, height: 1),

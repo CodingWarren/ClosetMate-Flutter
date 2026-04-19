@@ -16,6 +16,10 @@
     <!-- Android 13+ 分类权限 -->
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
 
+    <!-- 地理位置（GPS 定位天气） -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+
     <!-- 振动（可选，用于生物识别反馈） -->
     <uses-permission android:name="android.permission.VIBRATE" />
 

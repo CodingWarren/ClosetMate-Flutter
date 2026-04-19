@@ -13,6 +13,7 @@ class ApiConfigService {
   static const String _keyBaiduAiApiKey = 'api_baidu_api_key';
   static const String _keyBaiduAiSecretKey = 'api_baidu_secret_key';
   static const String _keyProxyBaseUrl = 'api_proxy_base_url';
+  static const String _keyUseLocationWeather = 'use_location_weather';
   static const String _keyInitialized = 'api_keys_initialized';
 
   // ─── 从 .env 文件读取默认值 ───────────────────────────────────────────────
@@ -111,6 +112,19 @@ class ApiConfigService {
     final prefs = await SharedPreferences.getInstance();
     // 去掉末尾斜杠，保持统一格式
     await prefs.setString(_keyProxyBaseUrl, url.trimRight().replaceAll(RegExp(r'/+$'), ''));
+  }
+
+  // ─── 天气定位 ─────────────────────────────────────────────────────────────
+
+  /// 是否使用 GPS 定位获取当地天气（默认关闭，使用手动配置的城市）
+  static Future<bool> get useLocationWeather async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(_keyUseLocationWeather) ?? false;
+  }
+
+  static Future<void> setUseLocationWeather(bool value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_keyUseLocationWeather, value);
   }
 
   // ─── 百度 AI ──────────────────────────────────────────────────────────────
