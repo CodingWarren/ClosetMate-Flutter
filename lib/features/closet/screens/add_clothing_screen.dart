@@ -107,12 +107,7 @@ class _AddClothingScreenState extends State<AddClothingScreen> {
 
     final newUris = [..._imageUris, ...persisted].take(5).toList();
     setState(() => _imageUris = newUris);
-
-    // 对第一张新图片触发 AI 处理（非阻塞，在卡片上显示遮罩）
-    if (persisted.isNotEmpty) {
-      final idx = newUris.indexOf(persisted.first);
-      _triggerAiProcessingAsync(persisted.first, idx);
-    }
+    // 不自动触发 AI 抠图，用户可点击图片右下角 ✨ 按钮手动触发
   }
 
   Future<void> _takePhoto() async {
@@ -125,9 +120,7 @@ class _AddClothingScreenState extends State<AddClothingScreen> {
 
     final newUris = [..._imageUris, persisted].take(5).toList();
     setState(() => _imageUris = newUris);
-
-    final idx = newUris.indexOf(persisted);
-    _triggerAiProcessingAsync(persisted, idx);
+    // 不自动触发 AI 抠图，用户可点击图片右下角 ✨ 按钮手动触发
   }
 
   /// 非阻塞 AI 抠图：在图片卡片上显示遮罩，不阻塞表单操作
@@ -558,10 +551,17 @@ class _Step1ImagePicker extends StatelessWidget {
               color: colorScheme.primaryContainer,
               iconColor: colorScheme.primary,
             )
-          else if (imageUris.isEmpty)
+          else if (imageUris.isNotEmpty)
             _InfoBanner(
               icon: Icons.auto_awesome,
-              text: '上传图片后，AI 将自动去除背景，生成干净的商品图效果',
+              text: '点击图片右下角 ✨ 按钮，可手动触发 AI 去除背景',
+              color: colorScheme.primaryContainer,
+              iconColor: colorScheme.primary,
+            )
+          else
+            _InfoBanner(
+              icon: Icons.auto_awesome,
+              text: '上传图片后，点击右下角 ✨ 按钮可去除背景',
               color: colorScheme.primaryContainer,
               iconColor: colorScheme.primary,
             ),
@@ -662,8 +662,8 @@ class _Step1ImagePicker extends StatelessWidget {
                                 ),
                               ),
                             ),
-                          // 重新触发 AI 按钮（仅第一张图片，且没有在处理中）
-                          if (!isProcessing && index == 0 && processingIndex == -1)
+                          // 手动触发 AI 抠图按钮（每张图片右下角，处理中时隐藏）
+                          if (!isProcessing && processingIndex == -1)
                             Positioned(
                               bottom: MediaQuery.of(context).padding.bottom + 4,
                               right: 4,
